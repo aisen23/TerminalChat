@@ -1,7 +1,8 @@
 #pragma once
 
 #include "Message.h"
-#include "Queue.h"
+
+#include <Common/Queue.h>
 
 #include <boost/asio.hpp>
 
@@ -77,22 +78,15 @@ namespace net
 			co_return true;
 		}
 
-
-		void Disconnect()
+		void disconnect()
 		{
-			if (IsConnected())
+			if (isConnected())
 				asio::post(m_asioContext, [this]() { m_socket.close(); });
 		}
 
-		bool IsConnected() const
+		bool isConnected() const
 		{
 			return m_socket.is_open();
-		}
-
-		// Prime the connection to wait for incoming messages
-		void StartListening()
-		{
-
 		}
 
 	protected:

@@ -2,8 +2,15 @@
 
 namespace tc
 {
+	enum class MsgTypes
+	{
+		Ping,
+		ChatText
+	};
+
+
 	template <typename T, typename... Args>
-	bool TC_COMMON_API isIn(T value, Args... args)
+	bool isIn(T value, Args... args)
 	{
 		return ((value == args) || ...);
 	}

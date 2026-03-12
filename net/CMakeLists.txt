@@ -1,7 +1,6 @@
 set(SRC
-	include/Message.h
-	include/Connection.h
-	include/ClientInterface.h
+	include/Net/Message.h
+	include/Net/Connection.h
 
 	src/net.cpp
 
@@ -15,13 +14,11 @@ add_library(net SHARED ${SRC})
 target_include_directories(net
 	PUBLIC
 		${CMAKE_CURRENT_SOURCE_DIR}/include
+		${BOOST_DIR}
 	PRIVATE
 		${CMAKE_CURRENT_SOURCE_DIR}
 		${CMAKE_CURRENT_SOURCE_DIR}/src
-		${BOOST_DIR}
 )
-
-target_link_libraries(net PRIVATE common)
 
 if(MSVC)
     target_compile_options(net PRIVATE

@@ -1,7 +1,9 @@
 set(SRC
 	include/CommonApi.h
-	include/Utils.h
-	include/Queue.h
+
+	include/Common/Common.h
+	include/Common/Utils.h
+	include/Common/Queue.h
 
 	src/Utils.cpp
 
@@ -18,6 +20,7 @@ target_include_directories(common
 	PUBLIC
 		${CMAKE_CURRENT_SOURCE_DIR}/include
 	PRIVATE
+		${BOOST_DIR}
 		${CMAKE_CURRENT_SOURCE_DIR}
 		${CMAKE_CURRENT_SOURCE_DIR}/src
 )
