@@ -28,6 +28,8 @@ namespace tc
 
 		m_netClient.reset();
 		std::println("NetClient is shutdowned.");
+
+		return 0;
 	}
 
 	void Application::checkNetClient()
@@ -89,13 +91,14 @@ namespace tc
 				else if (isIn(line, "!quit", "!exit"))
 					stop();
 				else
-					m_netClient->send(line);
+					m_netClient->send(std::move(line));
 			}
 			});
 	}
 
 	void Application::onReceive(net::Message<MsgTypes> msg)
 	{
+		std::println("Received message: id={}, size={}", static_cast<int>(msg.header.id), msg.size());
 	}
 	
 	void Application::pushTask(std::move_only_function<void()> task)

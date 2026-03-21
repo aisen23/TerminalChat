@@ -30,7 +30,8 @@ endif()
 
 set_target_properties(client
     PROPERTIES
-	OUTPUT_NAME "tc_client"
+	OUTPUT_NAME "terminal_chat"
+    RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin
 )
 
 target_precompile_headers(client PRIVATE pch.h)

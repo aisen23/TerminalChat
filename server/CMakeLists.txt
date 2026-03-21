@@ -17,7 +17,8 @@ endif()
 
 set_target_properties(server
     PROPERTIES
-	OUTPUT_NAME "tc_server"
+	OUTPUT_NAME "terminal_chat_server"
+    RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin
 )
 
 target_precompile_headers(server PRIVATE pch.h)

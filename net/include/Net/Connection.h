@@ -7,6 +7,7 @@
 #include <boost/asio.hpp>
 
 #include <memory>
+#include <print>
 #include <string>
 
 namespace net
@@ -46,8 +47,8 @@ namespace net
 			// TODO: handshake
 			m_id = uid;
 			auto executor = co_await asio::this_coro::executor;
-			asio::co_spawn(executor, readHeader(), asio::detached);
-
+			asio::co_spawn(executor, readMessage(), asio::detached);
+			asio::co_spawn(executor, writeMessage(), asio::detached);
 			std::println("Connection validated for UID: {}", m_id);
 			co_return true;
 		}
@@ -74,14 +75,15 @@ namespace net
 			}
 
 			auto executor = co_await asio::this_coro::executor;
-			asio::co_spawn(executor, readHeader(), asio::detached);
+			asio::co_spawn(executor, readMessage(), asio::detached);
+			asio::co_spawn(executor, writeMessage(), asio::detached);
 			co_return true;
 		}
 
 		void disconnect()
 		{
 			if (isConnected())
-				asio::post(m_asioContext, [this]() { m_socket.close(); });
+				asio::post(m_context, [this]() { m_socket.close(); });
 		}
 
 		bool isConnected() const
@@ -89,12 +91,103 @@ namespace net
 			return m_socket.is_open();
 		}
 
+		void send(Message<T> msg)
+		{
+			asio::post(m_context, [this, msg = std::move(msg)]() { m_messagesOut.pushBack(std::move(msg)); });
+		}
+
+	private:
+		asio::awaitable<void> readMessage()
+		{
+			try
+			{
+				for (;;)
+				{
+					if (!m_socket.is_open())
+						co_return;
+
+					MessageHeader<T> header{};
+					co_await asio::async_read(m_socket, asio::buffer(&header, sizeof(header)), asio::use_awaitable);
+
+					Message<T> msg;
+					msg.header = header;
+
+					if (msg.header.size > 0)
+					{
+						msg.body.resize(msg.header.size);
+						co_await asio::async_read(
+							m_socket,
+							asio::buffer(msg.body.data(), msg.body.size()),
+							asio::use_awaitable);
+					}
+
+					OwnedMessage<T> owned;
+					owned.remote = this->shared_from_this();
+					owned.msg = std::move(msg);
+					m_messagesIn.pushBack(std::move(owned));
+				}
+			}
+			catch (const std::exception& e)
+			{
+				std::println("Connection read error: {}", e.what());
+			}
+
+			// Ensure socket is closed on error/exit
+			if (m_socket.is_open())
+			{
+				boost::system::error_code ec;
+				m_socket.close(ec);
+			}
+
+			co_return;
+		}
+
+		asio::awaitable<void> writeMessage()
+		{
+			try
+			{
+				auto executor = co_await asio::this_coro::executor;
+
+				for (;;)
+				{
+					if (!m_socket.is_open())
+						co_return;
+
+					m_messagesOut.wait();
+					auto optMsg = m_messagesOut.popFront();
+					if (!optMsg)
+						continue;
+
+					Message<T> msg = std::move(*optMsg);
+
+					std::vector<asio::const_buffer> buffers;
+					buffers.emplace_back(asio::buffer(&msg.header, sizeof(msg.header)));
+					if (!msg.body.empty())
+						buffers.emplace_back(asio::buffer(msg.body.data(), msg.body.size()));
+
+					co_await asio::async_write(m_socket, buffers, asio::use_awaitable);
+				}
+			}
+			catch (const std::exception& e)
+			{
+				std::println("Connection write error: {}", e.what());
+			}
+
+			if (m_socket.is_open())
+			{
+				boost::system::error_code ec;
+				m_socket.close(ec);
+			}
+
+			co_return;
+		}
+
 	protected:
 		asio::ip::tcp::socket m_socket;
 		asio::io_context& m_context;
 		tc::Queue<Message<T>> m_messagesOut;
 		tc::Queue<OwnedMessage<T>>& m_messagesIn;
-		Owner m_owner = Owner::server;
-		std::string m_id = 0;
+		Owner m_owner = Owner::Server;
+		std::string m_id;
 	};
 }

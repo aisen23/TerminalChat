@@ -31,6 +31,9 @@ endif()
 set_target_properties(net
     PROPERTIES
 	OUTPUT_NAME "tc_net"
+    RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin
+	LIBRARY_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin
+    ARCHIVE_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/lib
 )
 
 target_precompile_headers(net PRIVATE pch.h)

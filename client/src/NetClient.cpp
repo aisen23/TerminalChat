@@ -39,36 +39,59 @@ namespace tc
 
 	void NetClient::connect()
 	{
-		asio::co_spawn(
-			m_context,
-			connectImpl(),
-			asio::detached
-		);
+		asio::co_spawn(m_context, connectImpl(), asio::detached);
+
+		if (!m_connection || !m_connection->isConnected())
+			return;
+
+		asio::co_spawn(m_context, receiveMsg(), asio::detached);
 	}
 
 	void NetClient::send(std::string message)
 	{
+		if (message.empty())
+			return;
+
 		net::Message<MsgTypes> msg;
 		if ("!ping" == message)
 			msg.header.id = MsgTypes::Ping;
 		else
 		{
 			msg.header.id = MsgTypes::ChatText;
-			net::Message<MsgTypes> msg{ type };
-			msg << message;
+			msg << std::move(message);
 		}
+
+		if (!isConnected())
+		{
+			std::println("Not connected, cannot send message");
+			return;
+		}
+
+		m_connection->send(std::move(msg));
 	}
 
-	bool NetClient::isConnected() const
+	bool NetClient::isConnected()
 	{
 		std::scoped_lock lock(m_mtx);
 		return m_connection && m_connection->isConnected();
 	}
 
-	bool NetClient::isConnectible() const
+	bool NetClient::isConnectible()
 	{
 		std::scoped_lock lock(m_mtx);
 		return utils::isIpValid(m_ip) && utils::isPortValid(m_port);
+	}
+
+	const std::string& NetClient::ip()
+	{
+		std::scoped_lock lock(m_mtx);
+		return m_ip;
+	}
+
+	uint32_t NetClient::port()
+	{
+		std::scoped_lock lock(m_mtx);
+		return m_port;
 	}
 
 	void NetClient::setFullAddress(std::string ip, uint32_t port)
@@ -84,22 +107,51 @@ namespace tc
 			asio::ip::tcp::resolver resolver{ m_context };
 			auto endpoints = co_await resolver.async_resolve(m_ip, std::format("{}", m_port), asio::use_awaitable);
 
-			m_connection = std::make_unique<net::Connection<MsgTypes>>(
+			auto connection = std::make_unique<net::Connection<MsgTypes>>(
 				net::Connection<MsgTypes>::Owner::Client,
 				m_context,
 				asio::ip::tcp::socket(m_context),
 				m_messagesIn);
 
-			bool ok = co_await m_connection->connectToServer(endpoints);
+			bool ok = co_await connection->connectToServer(endpoints);
 
 			if (!ok)
 				std::println("Connection failed");
 			else
+			{
+				{
+					std::scoped_lock lock(m_mtx);
+					m_connection = std::move(connection);
+				}
 				std::println("Connected!");
+			}
 		}
 		catch (const std::exception& e)
 		{
 			std::println("Connect error: {}", e.what());
 		}
+
+		co_return;
+	}
+
+	asio::awaitable<void> NetClient::receiveMsg()
+	{
+		for (;;)
+		{
+			if (!m_connection || !m_connection->isConnected())
+			{
+				std::println("Disconnected from server");
+				break;
+			}
+
+			m_messagesIn.wait();
+			auto optMsg = m_messagesIn.popFront();
+			if (!optMsg)
+				continue;
+
+			m_handler.onReceive(std::move((*optMsg).msg));
+		}
+
+		co_return;
 	}
 }

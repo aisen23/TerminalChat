@@ -35,6 +35,9 @@ namespace net
 			requires std::is_trivially_copyable_v<DataType>
 		Message<T>& operator>>(DataType& data)
 		{
+			if (body.size() < sizeof(DataType))
+				throw std::runtime_error("Message::operator>>: not enough data for type");
+
 			size_t i = body.size() - sizeof(DataType);
 			std::memcpy(&data, body.data() + i, sizeof(DataType));
 			body.resize(i);
@@ -42,28 +45,22 @@ namespace net
 			return *this;
 		}
 
-		TODO
-		template<typename T>
 		Message<T>& operator<<(const std::string& str)
 		{
-			uint32_t len = str.size();
+			uint32_t len = static_cast<uint32_t>(str.size());
 			size_t i = body.size();
 			body.resize(i + len);
 			std::memcpy(body.data() + i, str.data(), len);
-			header.size = static_cast<uint32_t>(size());
+			header.size = static_cast<uint32_t>(body.size());
 			return *this;
 		}
 
-		template<typename T>
 		Message<T>& operator>>(std::string& str)
 		{
-			uint32_t len;
-			*this >> len;                        // read length first
-
-			str.resize(len);
-			std::memcpy(str.data(), body.data() + (body.size() - len), len);
-			body.resize(body.size() - len);
-			header.size = static_cast<uint32_t>(body.size());
+			uint32_t len = header.size;
+			str.assign(reinterpret_cast<char*>(body.data()), static_cast<size_t>(len));
+			body.clear();
+			header.size = 0;
 			return *this;
 		}
 	};
@@ -77,7 +74,7 @@ namespace net
 		std::shared_ptr<Connection<T>> remote{};
 		Message<T> msg;
 
-		std::ostream& operator<<(std::ostream& os, const OwnedMessage<T>& msg)
+		friend std::ostream& operator<<(std::ostream& os, const OwnedMessage<T>& msg)
 		{
 			os << msg.msg;
 			return os;

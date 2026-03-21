@@ -24,15 +24,16 @@ namespace tc
 		void connect();
 		void send(std::string message);
 
-		bool isConnected() const;
-		bool isConnectible() const;
-		const std::string& ip() const { return m_ip; }
-		uint32_t port() const { return m_port; }
+		bool isConnected();
+		bool isConnectible();
+		const std::string& ip();
+		uint32_t port();
 
 		void setFullAddress(std::string ip, uint32_t port);
 
 	private:
 		asio::awaitable<void> connectImpl();
+		asio::awaitable<void> receiveMsg();
 
 	private:
 		NetClientHandler& m_handler;
