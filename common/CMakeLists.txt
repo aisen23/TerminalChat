@@ -36,9 +36,6 @@ endif()
 set_target_properties(common
     PROPERTIES
 	OUTPUT_NAME "tc_common"
-    RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin
-	LIBRARY_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin
-    ARCHIVE_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/lib
 )
 
 target_precompile_headers(common PRIVATE pch.h)

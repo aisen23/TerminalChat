@@ -13,13 +13,24 @@ namespace tc
 	{
 	public:
 		Queue() = default;
-		~Queue() { clear(); }
+		~Queue()
+		{
+			{
+				std::scoped_lock lock(m_mtx);
+				m_stop = true;
+			}
+			m_cv.notify_all();
+			clear();
+		}
 
 	public:
 		void pushBack(T item)
 		{
 			{
 				std::scoped_lock lock(m_mtx);
+				if (m_stop)
+					return;
+
 				m_queue.emplace_back(std::move(item));
 			}
 			m_cv.notify_one();
@@ -30,6 +41,9 @@ namespace tc
 		{
 			{
 				std::scoped_lock lock(m_mtx);
+				if (m_stop)
+					return;
+
 				m_queue.emplace_back(std::forward<Args>(args)...);
 			}
 			m_cv.notify_one();
@@ -39,6 +53,9 @@ namespace tc
 		{
 			{
 				std::scoped_lock lock(m_mtx);
+				if (m_stop)
+					return;
+
 				m_queue.emplace_front(std::move(item));
 			}
 			m_cv.notify_one();
@@ -49,6 +66,9 @@ namespace tc
 		{
 			{
 				std::scoped_lock lock(m_mtx);
+				if (m_stop)
+					return;
+				
 				m_queue.emplace_front(std::forward<Args>(args)...);
 			}
 			m_cv.notify_one();
@@ -86,7 +106,7 @@ namespace tc
 		void wait()
 		{
 			std::unique_lock lock(m_mtx);
-			m_cv.wait(lock, [this] { return !m_queue.empty(); });
+			m_cv.wait(lock, [this] { return m_stop || !m_queue.empty(); });
 		}
 
 	private:
@@ -94,6 +114,7 @@ namespace tc
 		Queue& operator=(const Queue&) = delete;
 
 	protected:
+		bool m_stop{ false };
 		std::deque<T> m_queue;
 		std::mutex m_mtx;
 		std::condition_variable m_cv;
