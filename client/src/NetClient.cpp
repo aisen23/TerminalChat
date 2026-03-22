@@ -26,10 +26,17 @@ namespace tc
 	void NetClient::stop()
 	{
 		std::scoped_lock lock(m_mtx);
+		m_messagesIn.shutdown();
+
 		m_connection.reset();
 		m_context.stop();
+
+		// TODO: Join under m_mtx?
 		if (m_worker.joinable())
 			m_worker.join();
+
+		if (m_recvWorker.joinable())
+			m_recvWorker.join();
 
 		m_context.restart();
 
@@ -40,11 +47,6 @@ namespace tc
 	void NetClient::connect()
 	{
 		asio::co_spawn(m_context, connectImpl(), asio::detached);
-
-		if (!m_connection || !m_connection->isConnected())
-			return;
-
-		asio::co_spawn(m_context, receiveMsg(), asio::detached);
 	}
 
 	void NetClient::send(std::string message)
@@ -124,6 +126,9 @@ namespace tc
 					m_connection = std::move(connection);
 				}
 				std::println("Connected!");
+
+				if (!m_recvWorker.joinable())
+					m_recvWorker = std::jthread([this] { receiveMsgLoop(); });
 			}
 		}
 		catch (const std::exception& e)
@@ -134,14 +139,17 @@ namespace tc
 		co_return;
 	}
 
-	asio::awaitable<void> NetClient::receiveMsg()
+	void NetClient::receiveMsgLoop()
 	{
 		for (;;)
 		{
-			if (!m_connection || !m_connection->isConnected())
 			{
-				std::println("Disconnected from server");
-				break;
+				std::scoped_lock lock(m_mtx);
+				if (!m_connection && m_messagesIn.stopped())
+				{
+					std::println("[CLIENT] No connection or message queue is stopped.");
+					break;
+				}
 			}
 
 			m_messagesIn.wait();
@@ -149,9 +157,14 @@ namespace tc
 			if (!optMsg)
 				continue;
 
-			m_handler.onReceive(std::move((*optMsg).msg));
+			try
+			{
+				m_handler.onReceive(std::move((*optMsg).msg));
+			}
+			catch (const std::exception& e)
+			{
+				std::println("[CLIENT] Error processing message: {}", e.what());
+			}
 		}
-
-		co_return;
 	}
 }

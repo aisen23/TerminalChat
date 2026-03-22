@@ -6,6 +6,7 @@ namespace tc
 	int Application::run()
 	{
 		using namespace std::chrono_literals;
+		m_netClient = std::make_unique<NetClient>(*this);
 		startInputWorker();
 
 		while (true)
@@ -27,7 +28,7 @@ namespace tc
 		}
 
 		m_netClient.reset();
-		std::println("NetClient is shutdowned.");
+		std::println("[INFO] NetClient is shutdowned.");
 
 		return 0;
 	}
@@ -57,33 +58,41 @@ namespace tc
 
 				if (line.starts_with("!connect"))
 				{
-					const std::string fullAddr = line.substr(9);
+					auto printFormatError = [] { std::println("[ERROR] Use format !connect <ip>:<port>"); };
+
+					size_t spacePos = line.find(' ');
+					if (spacePos == std::string::npos)
+					{
+						printFormatError();
+						continue;
+					}
+
+					const std::string fullAddr = line.substr(spacePos + 1);
 					size_t colonPos = fullAddr.find(':');
 
-					if (colonPos != std::string::npos)
+					if (colonPos == std::string::npos)
 					{
-						const std::string host = fullAddr.substr(0, colonPos);
-						const std::string portStr = fullAddr.substr(colonPos + 1);
-						if (!portStr.empty())
-						{
-							try
-							{
-								std::size_t pos;
-								const uint32_t port = std::stoul(portStr, &pos);
-								if (pos != portStr.size())
-									throw std::runtime_error("Extra character detected.");
-
-								pushTask([this, host = std::move(host), port] { m_netClient->setFullAddress(host, port); m_netClient->start(); });
-							}
-							catch (const std::exception& e)
-							{
-								std::println("Incorrect port={}, details: {}", portStr, e.what());
-							}
-						}
+						printFormatError();
+						continue;
 					}
-					else
+
+					const std::string host = fullAddr.substr(0, colonPos);
+					const std::string portStr = fullAddr.substr(colonPos + 1);
+					if (!portStr.empty())
 					{
-						std::println("Error: Use format !connect <ip>:<port>");
+						try
+						{
+							std::size_t pos;
+							const uint32_t port = std::stoul(portStr, &pos);
+							if (pos != portStr.size())
+								throw std::runtime_error("Extra character detected.");
+
+							pushTask([this, host = std::move(host), port] { m_netClient->setFullAddress(host, port); m_netClient->start(); });
+						}
+						catch (const std::exception& e)
+						{
+							std::println("[ERROR] Incorrect port={}, details: {}", portStr, e.what());
+						}
 					}
 				}
 				else if ("!disconnect" == line)

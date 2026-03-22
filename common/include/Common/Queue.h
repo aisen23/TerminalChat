@@ -13,15 +13,7 @@ namespace tc
 	{
 	public:
 		Queue() = default;
-		~Queue()
-		{
-			{
-				std::scoped_lock lock(m_mtx);
-				m_stop = true;
-			}
-			m_cv.notify_all();
-			clear();
-		}
+		~Queue() { shutdown(); }
 
 	public:
 		void pushBack(T item)
@@ -107,6 +99,21 @@ namespace tc
 		{
 			std::unique_lock lock(m_mtx);
 			m_cv.wait(lock, [this] { return m_stop || !m_queue.empty(); });
+		}
+
+		void shutdown()
+		{
+			{
+				std::scoped_lock lock(m_mtx);
+				m_stop = true;
+			}
+			m_cv.notify_all();
+		}
+
+		bool stopped()
+		{
+			std::scoped_lock lock(m_mtx);
+			return m_stop;
 		}
 
 	private:

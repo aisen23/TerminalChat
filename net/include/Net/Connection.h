@@ -70,7 +70,7 @@ namespace net
 
 			if (ec)
 			{
-				std::println("Failed to connect to endpoint: {}", ec.message());
+				std::println("[ERROR] Failed to connect to endpoint: {}", ec.message());
 				co_return false;
 			}
 
@@ -114,6 +114,14 @@ namespace net
 
 					if (msg.header.size > 0)
 					{
+						if (msg.header.size > MAX_MESSAGE_SIZE)
+						{
+							std::println("[ERROR] Connection read error: message too large ({})", msg.header.size);
+							boost::system::error_code ec;
+							m_socket.close(ec);
+							co_return;
+						}
+
 						msg.body.resize(msg.header.size);
 						co_await asio::async_read(
 							m_socket,
@@ -129,10 +137,9 @@ namespace net
 			}
 			catch (const std::exception& e)
 			{
-				std::println("Connection read error: {}", e.what());
+				std::println("[ERROR] Connection read error: {}", e.what());
 			}
 
-			// Ensure socket is closed on error/exit
 			if (m_socket.is_open())
 			{
 				boost::system::error_code ec;
@@ -170,7 +177,7 @@ namespace net
 			}
 			catch (const std::exception& e)
 			{
-				std::println("Connection write error: {}", e.what());
+				std::println("[ERROR] Connection write error: {}", e.what());
 			}
 
 			if (m_socket.is_open())

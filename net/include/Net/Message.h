@@ -5,6 +5,8 @@
 
 namespace net
 {
+	constexpr uint32_t MAX_MESSAGE_SIZE = 4 * 1024;
+
 	template<class T>
 	struct MessageHeader
 	{
@@ -48,6 +50,9 @@ namespace net
 		Message<T>& operator<<(const std::string& str)
 		{
 			uint32_t len = static_cast<uint32_t>(str.size());
+			if (len > MAX_MESSAGE_SIZE)
+				throw std::runtime_error("Message::operator<<: string too large");
+
 			size_t i = body.size();
 			body.resize(i + len);
 			std::memcpy(body.data() + i, str.data(), len);
@@ -58,6 +63,9 @@ namespace net
 		Message<T>& operator>>(std::string& str)
 		{
 			uint32_t len = header.size;
+			if (len > MAX_MESSAGE_SIZE)
+				throw std::runtime_error("Message::operator<<: string too large");
+
 			str.assign(reinterpret_cast<char*>(body.data()), static_cast<size_t>(len));
 			body.clear();
 			header.size = 0;
