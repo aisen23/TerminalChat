@@ -9,7 +9,7 @@ set(SRC
 
 source_group(TREE ${CMAKE_CURRENT_SOURCE_DIR} FILES ${SRC})
 
-add_library(net SHARED ${SRC})
+add_library(net STATIC ${SRC})
 
 target_include_directories(net
 	PUBLIC
