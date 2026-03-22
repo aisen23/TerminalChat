@@ -16,12 +16,19 @@ namespace tc
 
 	private:
 		void checkNetClient();
+		void init();
 		void startInputWorker();
 
 		void onReceive(net::Message<MsgTypes> msg) override;
 		void pushTask(std::move_only_function<void()> task) override;
 
 		void stop();
+
+		void saveData();
+		void loadData();
+
+		void setName(std::string name);
+		void connect(std::string&& data);
 
 	private:
 		std::unique_ptr<NetClient> m_netClient;
@@ -31,5 +38,6 @@ namespace tc
 		std::condition_variable m_cv;
 		Queue<Task> m_tasks;
 		std::jthread m_inputWorker;
+		std::string m_name;
 	};
 }

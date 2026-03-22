@@ -4,6 +4,7 @@ set(SRC
 	include/Common/Common.h
 	include/Common/Utils.h
 	include/Common/Queue.h
+	include/Common/ScopeGuard.h
 
 	src/Utils.cpp
 

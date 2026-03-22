@@ -1,12 +1,15 @@
 #include "pch.h"
 #include "Application.h"
 
+using json = nlohmann::json;
+
 namespace tc
 {
+	namespace fs = std::filesystem;
 	int Application::run()
 	{
 		using namespace std::chrono_literals;
-		m_netClient = std::make_unique<NetClient>(*this);
+		init();
 		startInputWorker();
 
 		while (true)
@@ -35,15 +38,40 @@ namespace tc
 
 	void Application::checkNetClient()
 	{
+		static bool reported = false;
 		if (!m_netClient->isConnected())
 		{
 			if (m_netClient->isConnectible())
+			{
+				reported = false;
 				m_netClient->connect();
+			}
 			else
 			{
-				std::println("[WARN] Incorrect host ip={} or port={}", m_netClient->ip(), m_netClient->port());
+				if (!reported)
+				{
+					reported = true;
+					std::println("[WARN] Incorrect host ip={} or port={}", m_netClient->ip(), m_netClient->port());
+				}
 				m_netClient->stop();
 			}
+		}
+	}
+
+	void Application::init()
+	{
+		m_netClient = std::make_unique<NetClient>(*this);
+		loadData();
+
+		if (m_name.empty())
+		{
+			std::string name;
+			while (name.empty())
+			{
+				std::println("Enter your name:");
+				std::getline(std::cin, name);
+			}
+			setName(name);
 		}
 	}
 
@@ -57,48 +85,18 @@ namespace tc
 					continue;
 
 				if (line.starts_with("!connect"))
-				{
-					auto printFormatError = [] { std::println("[ERROR] Use format !connect <ip>:<port>"); };
-
-					size_t spacePos = line.find(' ');
-					if (spacePos == std::string::npos)
-					{
-						printFormatError();
-						continue;
-					}
-
-					const std::string fullAddr = line.substr(spacePos + 1);
-					size_t colonPos = fullAddr.find(':');
-
-					if (colonPos == std::string::npos)
-					{
-						printFormatError();
-						continue;
-					}
-
-					const std::string host = fullAddr.substr(0, colonPos);
-					const std::string portStr = fullAddr.substr(colonPos + 1);
-					if (!portStr.empty())
-					{
-						try
-						{
-							std::size_t pos;
-							const uint32_t port = std::stoul(portStr, &pos);
-							if (pos != portStr.size())
-								throw std::runtime_error("Extra character detected.");
-
-							pushTask([this, host = std::move(host), port] { m_netClient->setFullAddress(host, port); m_netClient->start(); });
-						}
-						catch (const std::exception& e)
-						{
-							std::println("[ERROR] Incorrect port={}, details: {}", portStr, e.what());
-						}
-					}
-				}
+					connect(std::move(line));
 				else if ("!disconnect" == line)
 					pushTask([this] { m_netClient->stop(); });
 				else if (isIn(line, "!quit", "!exit"))
 					stop();
+				else if (line.starts_with("!setname"))
+				{
+					auto parts = utils::split(line, ' ');
+					std::string newName = parts.size() > 1 ? parts.at(1) : std::string{};
+					if (!newName.empty())
+						pushTask([this, newName = std::move(newName)] { setName(newName); });
+				}
 				else
 					m_netClient->send(std::move(line));
 			}
@@ -123,5 +121,85 @@ namespace tc
 		std::scoped_lock lock(m_mtx);
 		m_stop = true;
 		m_cv.notify_one();
+	}
+
+	void Application::saveData()
+	{
+		auto dir = utils::writableConfigPath();
+		std::ofstream file{ dir / "client_data.json" };
+		if (!file.is_open())
+		{
+			std::println("[ERROR] Failed to open file.");
+			return;
+		}
+
+		json j;
+		j["name"] = m_name;
+		file << j.dump(4);
+	}
+
+	void Application::loadData()
+	{
+		auto dir = utils::writableConfigPath();
+		std::ifstream file( dir / "client_data.json");
+		if (!file.is_open())
+		{
+			std::println("[ERROR] Failed to open file.");
+			return;
+		}
+
+		json j;
+		file >> j;
+
+		m_name = j["name"];
+	}
+
+	void Application::setName(std::string name)
+	{
+		m_name = std::move(name);
+		net::Message<MsgTypes> msg{ MsgTypes::ChangeUuid };
+		msg << m_name;
+		//if (m_netClient->isConnected())
+		//	m_netClient->send(std::move(msg));
+
+		saveData();
+	}
+
+	void Application::connect(std::string&& data)
+	{
+		auto printFormatError = [] { std::println("[ERROR] Use format !connect <ip>:<port>"); };
+
+		auto parts = utils::split(data, ' ');
+		if (parts.size() < 2)
+		{
+			printFormatError();
+			return;
+		}
+
+		parts = utils::split(parts.at(1), ':');
+		if (parts.size() < 2)
+		{
+			printFormatError();
+			return;
+		}
+
+		std::string host = parts.at(0);
+		const std::string portStr = parts.at(1);
+		if (!portStr.empty())
+		{
+			try
+			{
+				std::size_t pos;
+				const uint32_t port = std::stoul(portStr, &pos);
+				if (pos != portStr.size())
+					throw std::runtime_error("Extra character detected.");
+
+				pushTask([this, host = std::move(host), port] { m_netClient->setFullAddress(std::move(host), port); m_netClient->start(); });
+			}
+			catch (const std::exception& e)
+			{
+				std::println("[ERROR] Incorrect port={}, details: {}", portStr, e.what());
+			}
+		}
 	}
 }

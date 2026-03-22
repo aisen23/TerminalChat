@@ -5,7 +5,8 @@ namespace tc
 	enum class MsgTypes
 	{
 		Ping,
-		ChatText
+		ChatText,
+		ChangeUuid,
 	};
 
 
