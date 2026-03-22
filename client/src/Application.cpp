@@ -41,7 +41,7 @@ namespace tc
 				m_netClient->connect();
 			else
 			{
-				std::println("Incorrect host ip={} or port={}", m_netClient->ip(), m_netClient->port());
+				std::println("[WARN] Incorrect host ip={} or port={}", m_netClient->ip(), m_netClient->port());
 				m_netClient->stop();
 			}
 		}

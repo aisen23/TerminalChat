@@ -25,23 +25,30 @@ namespace tc
 
 	void NetClient::stop()
 	{
-		std::scoped_lock lock(m_mtx);
 		m_messagesIn.shutdown();
 
-		m_connection.reset();
-		m_context.stop();
+		std::jthread worker;
+		std::jthread recvWorker;
+		{
+			std::scoped_lock lock(m_mtx);
+			m_context.stop();
 
-		// TODO: Join under m_mtx?
-		if (m_worker.joinable())
-			m_worker.join();
+			worker = std::move(m_worker);
+			recvWorker = std::move(m_recvWorker);
+		}
 
-		if (m_recvWorker.joinable())
-			m_recvWorker.join();
+		if (worker.joinable())
+			worker.join();
+		if (recvWorker.joinable())
+			recvWorker.join();
 
-		m_context.restart();
-
-		m_ip.clear();
-		m_port = 0;
+		{
+			std::scoped_lock lock(m_mtx);
+			m_connection.reset();
+			m_context.restart();
+			m_ip.clear();
+			m_port = 0;
+		}
 	}
 
 	void NetClient::connect()
