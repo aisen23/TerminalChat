@@ -141,7 +141,7 @@ namespace tc
 			else
 			{
 				m_connection = std::move(connection);
-				std::println("Connected!");
+				tc::log::info("Connected!");
 
 				if (!m_recvWorker.joinable())
 					m_recvWorker = std::jthread([this] { receiveMsgLoop(); });
@@ -151,7 +151,7 @@ namespace tc
 		{
 			std::scoped_lock lock(m_mtx);
 			m_connecting = false;
-			std::println("Connect error: {}", e.what());
+			tc::log::error("Connect error: {}", e.what());
 		}
 
 		co_return;

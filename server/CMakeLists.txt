@@ -30,9 +30,15 @@ if(MSVC)
 endif()
 
 set_target_properties(server
-    PROPERTIES
+	PROPERTIES
 	OUTPUT_NAME "terminal_chat_server"
-    RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin
+	RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin
+)
+
+add_custom_command(TARGET server POST_BUILD
+	COMMAND ${CMAKE_COMMAND} -E copy_if_different
+	"${CMAKE_CURRENT_SOURCE_DIR}/terminal_chat_server.LogConfig.txt"
+	"$<TARGET_FILE_DIR:server>/terminal_chat_server.LogConfig.txt"
 )
 
 target_precompile_headers(server PRIVATE pch.h)

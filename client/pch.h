@@ -1,6 +1,7 @@
 #pragma once
 
 #include <Common/Common.h>
+#include <Common/Log.h>
 #include <Common/Queue.h>
 #include <Common/Utils.h>
 
@@ -13,6 +14,7 @@
 #include <deque>
 #include <filesystem>
 #include <fstream>
+#include <functional>
 #include <iostream>
 #include <memory>
 #include <mutex>

@@ -1,10 +1,6 @@
 #pragma once
 #include "NetClient.h"
 
-#include <Common/Queue.h>
-
-#include <functional>
-
 namespace tc
 {
 	namespace asio = boost::asio;

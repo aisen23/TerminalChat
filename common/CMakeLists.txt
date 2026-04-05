@@ -2,13 +2,15 @@ set(SRC
 	include/CommonApi.h
 
 	include/Common/Common.h
+	include/Common/Log.h
 	include/Common/Utils.h
 	include/Common/Queue.h
 	include/Common/ScopeGuard.h
 
+	src/Log.cpp
 	src/Utils.cpp
 
-    pch.h
+	pch.h
 )
 
 source_group(TREE ${CMAKE_CURRENT_SOURCE_DIR} FILES ${SRC})

@@ -1,0 +1,3 @@
+LogLevel=Info
+MaxFileSize=10
+MaxFiles=3

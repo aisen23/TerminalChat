@@ -3,8 +3,9 @@
 
 int main()
 {
+	tc::log::init("client");
 	tc::Application app;
 	int exitCode = app.run();
-	std::println("Exit code: {}", exitCode);
+	tc::log::info("Exit code: {}", exitCode);
 	return exitCode;
 }

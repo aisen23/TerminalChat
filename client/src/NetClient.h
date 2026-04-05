@@ -1,6 +1,4 @@
 #pragma once
-#include <Common/Common.h>
-#include <Net/Connection.h>
 
 namespace tc
 {

@@ -9,6 +9,7 @@ namespace tc
 	int Application::run()
 	{
 		using namespace std::chrono_literals;
+		log::info("Starting client application...");
 		init();
 		startInputWorker();
 
@@ -31,7 +32,7 @@ namespace tc
 		}
 
 		m_netClient.reset();
-		std::println("[INFO] NetClient is shutdowned.");
+		tc::log::info("NetClient is shutdown.");
 
 		return 0;
 	}
@@ -51,7 +52,7 @@ namespace tc
 				if (!reported)
 				{
 					reported = true;
-					std::println("[WARN] Incorrect host ip={} or port={}", m_netClient->ip(), m_netClient->port());
+					tc::log::warn("Incorrect host ip={} or port={}", m_netClient->ip(), m_netClient->port());
 				}
 				m_netClient->stop();
 			}
@@ -81,6 +82,9 @@ namespace tc
 			std::string line;
 			while (std::getline(std::cin, line))
 			{
+				while (!line.empty() && (line.back() == '\r' || line.back() == '\n' || line.back() == ' '))
+					line.pop_back();
+
 				if (line.empty())
 					continue;
 
@@ -167,7 +171,7 @@ namespace tc
 
 	void Application::connect(std::string&& data)
 	{
-		auto printFormatError = [] { std::println("[ERROR] Use format !connect <ip>:<port>"); };
+		auto printFormatError = [] { tc::log::warn("Use format !connect <ip>:<port>"); };
 
 		auto parts = utils::split(data, ' ');
 		if (parts.size() < 2)
@@ -198,7 +202,7 @@ namespace tc
 			}
 			catch (const std::exception& e)
 			{
-				std::println("[ERROR] Incorrect port={}, details: {}", portStr, e.what());
+				tc::log::warn("Incorrect port={}, details: {}", portStr, e.what());
 			}
 		}
 	}

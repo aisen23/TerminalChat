@@ -7,6 +7,8 @@ namespace tc
 	int Application::run()
 	{
 		using namespace std::chrono_literals;
+		log::info("Starting server application...");
+
 		init();
 		startInputWorker();
 

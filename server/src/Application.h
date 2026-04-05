@@ -1,14 +1,6 @@
 #pragma once
 #include "NetServer.h"
 
-#include <Common/Queue.h>
-
-#include <chrono>
-#include <condition_variable>
-#include <memory>
-#include <mutex>
-#include <string>
-
 namespace tc
 {
 	class Application : public NetServerHandler

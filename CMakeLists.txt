@@ -8,6 +8,8 @@ set(CMAKE_CXX_EXTENSIONS OFF)
 set(BOOST_DIR $ENV{BOOST_DIR})
 set(NLOHMANN_JSON_DIR $ENV{NLOHMANN_JSON_DIR})
 
+add_compile_definitions("SOLUTION_DIR=\"${CMAKE_SOURCE_DIR}/\"")
+
 add_subdirectory(common)
 add_subdirectory(net)
 add_subdirectory(client)
