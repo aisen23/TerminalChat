@@ -1,11 +1,25 @@
 set(SRC
 	main.cpp
-    pch.h
+	pch.h
+
+	src/Application.h
+	src/Application.cpp
+	src/NetServer.h
+	src/NetServer.cpp
 )
 
 source_group(TREE ${CMAKE_CURRENT_SOURCE_DIR} FILES ${SRC})
 
 add_executable(server ${SRC})
+
+target_include_directories(server
+	PRIVATE
+		${CMAKE_CURRENT_SOURCE_DIR}
+		${CMAKE_CURRENT_SOURCE_DIR}/src
+		${NLOHMANN_JSON_DIR}
+)
+
+target_link_libraries(server PRIVATE common net)
 
 if(MSVC)
     target_compile_options(server PRIVATE

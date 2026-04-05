@@ -1,7 +1,10 @@
 #include "pch.h"
+#include "Application.h"
 
 int main()
 {
-	std::println("hello from server");
-	return 0;
+	tc::Application app;
+	int exitCode = app.run();
+	std::println("Exit code: {}", exitCode);
+	return exitCode;
 }

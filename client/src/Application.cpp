@@ -95,7 +95,7 @@ namespace tc
 					auto parts = utils::split(line, ' ');
 					std::string newName = parts.size() > 1 ? parts.at(1) : std::string{};
 					if (!newName.empty())
-						pushTask([this, newName = std::move(newName)] { setName(newName); });
+						pushTask([this, newName = std::move(newName)]() mutable { setName(std::move(newName)); });
 				}
 				else
 					m_netClient->send(std::move(line));

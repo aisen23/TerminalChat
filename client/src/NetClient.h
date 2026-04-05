@@ -42,10 +42,11 @@ namespace tc
 		std::jthread m_worker;
 		std::jthread m_recvWorker;
 
-		std::unique_ptr<net::Connection<MsgTypes>> m_connection;
+		std::shared_ptr<net::Connection<MsgTypes>> m_connection;
 		Queue<net::OwnedMessage<MsgTypes>> m_messagesIn;
 		std::string m_ip;
 		uint32_t m_port{};
 		std::mutex m_mtx;
+		bool m_connecting{ false };
 	};
 }

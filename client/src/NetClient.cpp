@@ -17,6 +17,7 @@ namespace tc
 	void NetClient::start()
 	{
 		std::scoped_lock lock(m_mtx);
+		m_messagesIn.restart();
 		if (m_worker.joinable())
 			return;
 
@@ -53,6 +54,11 @@ namespace tc
 
 	void NetClient::connect()
 	{
+		std::scoped_lock lock(m_mtx);
+		if (m_connecting || (m_connection && m_connection->isConnected()))
+			return;
+
+		m_connecting = true;
 		asio::co_spawn(m_context, connectImpl(), asio::detached);
 	}
 
@@ -116,7 +122,7 @@ namespace tc
 			asio::ip::tcp::resolver resolver{ m_context };
 			auto endpoints = co_await resolver.async_resolve(m_ip, std::format("{}", m_port), asio::use_awaitable);
 
-			auto connection = std::make_unique<net::Connection<MsgTypes>>(
+			auto connection = std::make_shared<net::Connection<MsgTypes>>(
 				net::Connection<MsgTypes>::Owner::Client,
 				m_context,
 				asio::ip::tcp::socket(m_context),
@@ -124,14 +130,17 @@ namespace tc
 
 			bool ok = co_await connection->connectToServer(endpoints);
 
+			std::scoped_lock lock(m_mtx);
+			m_connecting = false;
+
 			if (!ok)
+			{
 				std::println("Connection failed");
+				m_connection.reset();
+			}
 			else
 			{
-				{
-					std::scoped_lock lock(m_mtx);
-					m_connection = std::move(connection);
-				}
+				m_connection = std::move(connection);
 				std::println("Connected!");
 
 				if (!m_recvWorker.joinable())
@@ -140,6 +149,8 @@ namespace tc
 		}
 		catch (const std::exception& e)
 		{
+			std::scoped_lock lock(m_mtx);
+			m_connecting = false;
 			std::println("Connect error: {}", e.what());
 		}
 

@@ -110,6 +110,12 @@ namespace tc
 			m_cv.notify_all();
 		}
 
+		void restart()
+		{
+			std::scoped_lock lock(m_mtx);
+			m_stop = false;
+		}
+
 		bool stopped()
 		{
 			std::scoped_lock lock(m_mtx);
