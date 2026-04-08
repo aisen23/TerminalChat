@@ -1,11 +1,15 @@
+set(APP_OUTPUT_NAME terminal_chat)
+
 set(SRC
 	main.cpp
-    pch.h
+	pch.h
 
-    src/Application.h
-    src/Application.cpp
+	src/Application.h
+	src/Application.cpp
 	src/NetClient.h
 	src/NetClient.cpp
+
+	"${APP_OUTPUT_NAME}.LogConfig.txt"
 )
 
 source_group(TREE ${CMAKE_CURRENT_SOURCE_DIR} FILES ${SRC})
@@ -31,14 +35,14 @@ endif()
 
 set_target_properties(client
 	PROPERTIES
-	OUTPUT_NAME "terminal_chat"
+	OUTPUT_NAME "${APP_OUTPUT_NAME}"
 	RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/bin"
 )
 
 add_custom_command(TARGET client POST_BUILD
 	COMMAND ${CMAKE_COMMAND} -E copy_if_different
-	"${CMAKE_CURRENT_SOURCE_DIR}/terminal_chat.LogConfig.txt"
-	"$<TARGET_FILE_DIR:client>/terminal_chat.LogConfig.txt"
+	"${CMAKE_CURRENT_SOURCE_DIR}/${APP_OUTPUT_NAME}.LogConfig.txt"
+	"$<TARGET_FILE_DIR:client>/${APP_OUTPUT_NAME}.LogConfig.txt"
 )
 
 target_precompile_headers(client PRIVATE pch.h)
