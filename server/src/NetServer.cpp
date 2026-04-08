@@ -41,7 +41,9 @@ namespace tc
 		std::jthread recvWorker;
 		{
 			std::scoped_lock lock(m_mtx);
-			m_acceptor.close();
+			boost::system::error_code ec;
+			m_acceptor.close(ec);
+
 			m_context.stop();
 
 			workers = std::move(m_workers);
@@ -57,23 +59,23 @@ namespace tc
 
 		{
 			std::scoped_lock lock(m_mtx);
-			m_connections.clear();
+			m_clients.clear();
 			m_context.restart();
 		}
 	}
 
-	void NetServer::sendToClient(std::shared_ptr<net::Connection<MsgTypes>> client, net::Message<MsgTypes> msg)
+	void NetServer::sendToClient(std::shared_ptr<Client> client, net::Message<MsgTypes> msg)
 	{
-		if (client && client->isConnected())
-			client->send(std::move(msg));
+		if (client && client->connection && client->connection->isConnected())
+			client->connection->send(std::move(msg));
 	}
 
-	void NetServer::sendToAll(net::Message<MsgTypes> msg, std::shared_ptr<net::Connection<MsgTypes>> ignoreClient)
+	void NetServer::sendToAll(net::Message<MsgTypes> msg, std::shared_ptr<Client> ignoreClient)
 	{
 		std::scoped_lock lock(m_mtx);
-		for (auto& client : m_connections)
-			if (client != ignoreClient && client->isConnected())
-				client->send(msg);
+		for (auto& client : m_clients)
+			if (client != ignoreClient && client->connection && client->connection->isConnected())
+				client->connection->send(msg);
 	}
 
 	asio::awaitable<void> NetServer::acceptLoop()
@@ -96,12 +98,13 @@ namespace tc
 				bool ok = co_await connection->connectToClient(uid);
 				if (ok)
 				{
+					auto client = std::make_shared<Client>(Client{connection, uid, static_cast<uint32_t>(idCounter)});
 					{
 						std::scoped_lock lock(m_mtx);
-						m_connections.push_back(connection);
+						m_clients.push_back(client);
 					}
 					std::println("[SERVER] Client connected: {}", uid);
-					m_handler.onClientConnect(connection);
+					m_handler.onClientConnect(client);
 				}
 			}
 		}
@@ -132,7 +135,21 @@ namespace tc
 			try
 			{
 				auto ownedMsg = std::move(*optMsg);
-				m_handler.onReceive(ownedMsg.remote, std::move(ownedMsg.msg));
+				std::shared_ptr<Client> foundClient;
+				{
+					std::scoped_lock lock(m_mtx);
+					for (auto& client : m_clients)
+					{
+						if (client->connection == ownedMsg.remote)
+						{
+							foundClient = client;
+							break;
+						}
+					}
+				}
+
+				if (foundClient)
+					m_handler.onReceive(foundClient, std::move(ownedMsg.msg));
 			}
 			catch (const std::exception& e)
 			{

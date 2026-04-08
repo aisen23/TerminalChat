@@ -13,6 +13,9 @@
 namespace net
 {
 	namespace asio = boost::asio;
+
+	std::vector<std::string> getLocalIpAddresses();
+
 	template<typename T>
 	class Connection : public std::enable_shared_from_this<Connection<T>>
 	{

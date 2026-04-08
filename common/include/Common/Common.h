@@ -6,9 +6,11 @@ namespace tc
 	{
 		Ping,
 		ChatText,
-		ChangeUuid,
+		ChangeNickname,
 	};
 
+	constexpr int MIN_PORT = 40000;
+	constexpr int MAX_PORT = 65535;
 
 	template <typename T, typename... Args>
 	bool isIn(T value, Args... args)

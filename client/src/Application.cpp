@@ -93,7 +93,10 @@ namespace tc
 				else if ("!disconnect" == line)
 					pushTask([this] { m_netClient->stop(); });
 				else if (isIn(line, "!quit", "!exit"))
+				{
 					stop();
+					break;
+				}
 				else if (line.starts_with("!setname"))
 				{
 					auto parts = utils::split(line, ' ');
@@ -161,7 +164,7 @@ namespace tc
 	void Application::setName(std::string name)
 	{
 		m_name = std::move(name);
-		net::Message<MsgTypes> msg{ MsgTypes::ChangeUuid };
+		net::Message<MsgTypes> msg{ MsgTypes::ChangeNickname };
 		msg << m_name;
 		//if (m_netClient->isConnected())
 		//	m_netClient->send(std::move(msg));

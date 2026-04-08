@@ -1,5 +1,6 @@
 #include "pch.h"
 #include "Common/Utils.h"
+#include "Common/Common.h"
 
 #include "Common/ScopeGuard.h"
 
@@ -18,7 +19,7 @@ namespace tc::utils
 
 	bool TC_COMMON_API isPortValid(uint32_t port)
 	{
-		return port > 2000 && port <= 65535;
+		return port >= MIN_PORT && port <= MAX_PORT;
 	}
 
 	std::filesystem::path TC_COMMON_API writableConfigPath()

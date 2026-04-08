@@ -3,13 +3,21 @@
 namespace tc
 {
 	namespace asio = boost::asio;
+
+	struct Client
+	{
+		std::shared_ptr<net::Connection<MsgTypes>> connection{};
+		std::string name{};
+		uint32_t uuid{};
+	};
+
 	class NetServerHandler
 	{
 	public:
-		virtual void onReceive(std::shared_ptr<net::Connection<MsgTypes>> client, net::Message<MsgTypes> msg) = 0;
+		virtual void onReceive(std::shared_ptr<Client> client, net::Message<MsgTypes> msg) = 0;
 		virtual void pushTask(std::move_only_function<void()> task) = 0;
-		virtual void onClientConnect(std::shared_ptr<net::Connection<MsgTypes>> client) = 0;
-		virtual void onClientDisconnect(std::shared_ptr<net::Connection<MsgTypes>> client) = 0;
+		virtual void onClientConnect(std::shared_ptr<Client> client) = 0;
+		virtual void onClientDisconnect(std::shared_ptr<Client> client) = 0;
 	};
 
 	class NetServer
@@ -21,8 +29,8 @@ namespace tc
 		void start();
 		void stop();
 
-		void sendToClient(std::shared_ptr<net::Connection<MsgTypes>> client, net::Message<MsgTypes> msg);
-		void sendToAll(net::Message<MsgTypes> msg, std::shared_ptr<net::Connection<MsgTypes>> ignoreClient = nullptr);
+		void sendToClient(std::shared_ptr<Client> client, net::Message<MsgTypes> msg);
+		void sendToAll(net::Message<MsgTypes> msg, std::shared_ptr<Client> ignoreClient = nullptr);
 
 	private:
 		asio::awaitable<void> acceptLoop();
@@ -37,7 +45,7 @@ namespace tc
 		std::jthread m_recvWorker;
 
 		Queue<net::OwnedMessage<MsgTypes>> m_messagesIn;
-		std::vector<std::shared_ptr<net::Connection<MsgTypes>>> m_connections;
+		std::vector<std::shared_ptr<Client>> m_clients;
 		std::mutex m_mtx;
 	};
 }

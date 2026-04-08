@@ -3,13 +3,15 @@ set(SRC
 	include/Net/Connection.h
 
 	src/net.cpp
+	src/Connection.cpp
 
-    pch.h
+	pch.h
 )
 
 source_group(TREE ${CMAKE_CURRENT_SOURCE_DIR} FILES ${SRC})
 
 add_library(net STATIC ${SRC})
+target_link_libraries(net PUBLIC common)
 
 target_include_directories(net
 	PUBLIC

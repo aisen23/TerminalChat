@@ -37,9 +37,56 @@ namespace tc
 
 	void Application::init()
 	{
-		std::println("Starting server on port 8080...");
-		m_netServer = std::make_unique<NetServer>(*this, 8080);
-		m_netServer->start();
+		uint32_t port = 0;
+		while (port == 0)
+		{
+			std::print("Enter port number (default {}): ", MIN_PORT);
+			std::string line;
+			std::getline(std::cin, line);
+			if (line.empty())
+			{
+				port = MIN_PORT;
+				break;
+			}
+			try
+			{
+				port = std::stoul(line);
+				if (!utils::isPortValid(port))
+				{
+					std::println("Port must be a valid user port between {} and {}.", MIN_PORT, MAX_PORT);
+					port = 0;
+				}
+			}
+			catch (...)
+			{
+				std::println("Invalid input. Please enter a valid numeric port.");
+			}
+		}
+
+		while (port <= MAX_PORT)
+		{
+			try
+			{
+				m_netServer = std::make_unique<NetServer>(*this, port);
+				m_netServer->start();
+
+				std::println("Server started. Listening on:");
+				for (const auto& ip : net::getLocalIpAddresses())
+				{
+					std::println("  {}:{}", ip, port);
+				}
+
+				return;
+			}
+			catch (const std::exception& e)
+			{
+				log::warn("Port {} is busy ({}), trying next...", port, e.what());
+				port++;
+			}
+		}
+
+		log::fatal("Unable to start server: no available ports found in range.");
+		stop();
 	}
 
 	void Application::startInputWorker()
@@ -76,7 +123,7 @@ namespace tc
 		});
 	}
 
-	void Application::onReceive(std::shared_ptr<net::Connection<MsgTypes>> client, net::Message<MsgTypes> msg)
+	void Application::onReceive(std::shared_ptr<Client> client, net::Message<MsgTypes> msg)
 	{
 		pushTask([this, client, msg = std::move(msg)]() mutable {
 			switch (msg.header.id)
@@ -85,44 +132,46 @@ namespace tc
 			{
 				std::string text;
 				msg >> text;
-				std::println("Chat from {}: {}", client->GetId(), text);
+				std::println("Chat from {}: {}", client->name, text);
 
 				net::Message<MsgTypes> broadcastMsg;
 				broadcastMsg.header.id = MsgTypes::ChatText;
-				std::string outgoing = std::format("[{}]: {}", client->GetId(), text);
+				std::string outgoing = std::format("[{}]: {}", client->name, text);
 				broadcastMsg << outgoing;
 				m_netServer->sendToAll(std::move(broadcastMsg), client);
 				break;
 			}
-			case MsgTypes::ChangeUuid:
+			case MsgTypes::ChangeNickname:
 			{
 				std::string newName;
 				msg >> newName;
-				std::println("User {} changed name to {}", client->GetId(), newName);
+				std::println("User {} changed nickname to {}", client->name, newName);
+				client->name = newName;
 				// In a real server we'd set the nickname, for now we just acknowledge.
 				break;
 			}
 			case MsgTypes::Ping:
 			{
-				std::println("Ping from {}", client->GetId());
-				client->send(std::move(msg));
+				std::println("Ping from {}", client->name);
+				if (client->connection && client->connection->isConnected())
+					client->connection->send(std::move(msg));
 				break;
 			}
 			}
 		});
 	}
 
-	void Application::onClientConnect(std::shared_ptr<net::Connection<MsgTypes>> client)
+	void Application::onClientConnect(std::shared_ptr<Client> client)
 	{
 		pushTask([this, client]() {
-			std::println("New client connected: {}", client->GetId());
+			std::println("New client connected: {}", client->name);
 		});
 	}
 
-	void Application::onClientDisconnect(std::shared_ptr<net::Connection<MsgTypes>> client)
+	void Application::onClientDisconnect(std::shared_ptr<Client> client)
 	{
 		pushTask([this, client]() {
-			std::println("Client disconnected: {}", client->GetId());
+			std::println("Client disconnected: {}", client->name);
 		});
 	}
 
