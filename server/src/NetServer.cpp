@@ -105,6 +105,11 @@ namespace tc
 				}
 			}
 		}
+		catch (const boost::system::system_error& e)
+		{
+			if (e.code() != asio::error::operation_aborted)
+				std::println("[SERVER] Accept error: {}", e.what());
+		}
 		catch (const std::exception& e)
 		{
 			std::println("[SERVER] Accept error: {}", e.what());
