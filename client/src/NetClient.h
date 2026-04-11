@@ -20,6 +20,7 @@ namespace tc
 		void stop();
 
 		void connect();
+		void disconnect();
 		void send(const std::string& message);
 		void send(net::Message<MsgTypes> msg);
 

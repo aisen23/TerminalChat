@@ -50,7 +50,7 @@ namespace tc
 			}
 			else
 			{
-				if (!reported)
+				if (!reported && !m_netClient->ip().empty())
 				{
 					reported = true;
 					tc::log::warn("Incorrect host ip={} or port={}", m_netClient->ip(), m_netClient->port());
@@ -70,7 +70,7 @@ namespace tc
 			std::string name;
 			while (name.empty())
 			{
-				std::println("Enter your name:");
+				std::print("Enter your name: ");
 				std::getline(std::cin, name);
 			}
 			setName(name);
@@ -92,12 +92,9 @@ namespace tc
 				if (line.starts_with("!connect"))
 					connect(std::move(line));
 				else if ("!disconnect" == line)
-					pushTask([this] { m_netClient->stop(); });
+					pushTask([this] { m_netClient->disconnect(); });
 				else if (isIn(line, "!quit", "!exit"))
-				{
 					stop();
-					break;
-				}
 				else if (line.starts_with("!setname"))
 				{
 					auto parts = utils::split(line, ' ');
@@ -112,13 +109,10 @@ namespace tc
 					m_netClient->send(std::move(msg));
 				}
 				else
-				{
 					m_netClient->send(line);
-				}
 
 				formatText(line, true);
-			}
-			});
+			}});
 	}
 
 	void Application::onReceive(net::Message<MsgTypes> msg)
@@ -204,7 +198,8 @@ namespace tc
 		m_name = std::move(name);
 		net::Message<MsgTypes> msg{ MsgTypes::ChangeNickname };
 		msg << m_name;
-		m_netClient->send(std::move(msg));
+		if (m_netClient->isConnected())
+			m_netClient->send(std::move(msg));
 
 		saveData();
 	}
@@ -238,8 +233,8 @@ namespace tc
 				if (pos != portStr.size())
 					throw std::runtime_error("Extra character detected.");
 
-				pushTask([this, host = std::move(host), port] { 
-					m_netClient->setFullAddress(std::move(host), port); 
+				pushTask([this, host = std::move(host), port] {
+					m_netClient->setFullAddress(std::move(host), port);
 					saveData();
 				});
 			}

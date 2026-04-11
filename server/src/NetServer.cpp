@@ -122,11 +122,37 @@ namespace tc
 
 	void NetServer::receiveMsgLoop()
 	{
+		using namespace std::chrono_literals;
 		for (;;)
 		{
-			m_messagesIn.wait();
+			bool hasMsg = m_messagesIn.waitFor(100ms);
 			if (m_messagesIn.stopped())
 				break;
+
+			std::vector<std::shared_ptr<Client>> disconnected;
+			{
+				std::scoped_lock lock(m_mtx);
+				for (auto it = m_clients.begin(); it != m_clients.end();)
+				{
+					if (!(*it)->connection || !(*it)->connection->isConnected())
+					{
+						disconnected.push_back(*it);
+						it = m_clients.erase(it);
+					}
+					else
+					{
+						++it;
+					}
+				}
+			}
+
+			for (auto& client : disconnected)
+			{
+				m_handler.onClientDisconnect(client);
+			}
+
+			if (!hasMsg)
+				continue;
 
 			auto optMsg = m_messagesIn.popFront();
 			if (!optMsg)

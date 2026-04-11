@@ -101,6 +101,13 @@ namespace tc
 			m_cv.wait(lock, [this] { return m_stop || !m_queue.empty(); });
 		}
 
+		template<class Rep, class Period>
+		bool waitFor(const std::chrono::duration<Rep, Period>& rel_time)
+		{
+			std::unique_lock lock(m_mtx);
+			return m_cv.wait_for(lock, rel_time, [this] { return m_stop || !m_queue.empty(); });
+		}
+
 		void shutdown()
 		{
 			{

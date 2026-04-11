@@ -150,6 +150,17 @@ namespace net
 					m_messagesIn.pushBack(std::move(owned));
 				}
 			}
+			catch (const boost::system::system_error& e)
+			{
+				if (e.code() == asio::error::eof || e.code() == asio::error::connection_reset || e.code() == asio::error::connection_aborted)
+				{
+					tc::log::info("Connection read closed by peer.");
+				}
+				else
+				{
+					tc::log::error("Connection read error: {}", e.what());
+				}
+			}
 			catch (const std::exception& e)
 			{
 				tc::log::error("Connection read error: {}", e.what());
@@ -192,6 +203,19 @@ namespace net
 
 					co_await asio::async_write(m_socket, buffers, asio::use_awaitable);
 				}
+			}
+			catch (const boost::system::system_error& e)
+			{
+				if (e.code() == asio::error::eof || e.code() == asio::error::connection_reset || e.code() == asio::error::connection_aborted)
+				{
+					tc::log::info("Connection write closed by peer.");
+				}
+				else
+				{
+					tc::log::error("Connection write error: {}", e.what());
+				}
+				std::scoped_lock lock(m_writingMtx);
+				m_writingMessage = false;
 			}
 			catch (const std::exception& e)
 			{

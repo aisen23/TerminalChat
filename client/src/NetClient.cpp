@@ -62,6 +62,19 @@ namespace tc
 		asio::co_spawn(m_context, connectImpl(), asio::detached);
 	}
 
+	void NetClient::disconnect()
+	{
+		std::scoped_lock lock(m_mtx);
+		if (m_connection && m_connection->isConnected())
+		{
+			tc::log::info("Disconnecting...");
+			m_connection->disconnect();
+		}
+
+		m_ip.clear();
+		m_port = 0;
+	}
+
 	void NetClient::send(const std::string& message)
 	{
 		if (message.empty())
@@ -123,6 +136,7 @@ namespace tc
 
 	void NetClient::setFullAddress(std::string ip, uint32_t port)
 	{
+		std::scoped_lock lock(m_mtx);
 		m_ip = std::move(ip);
 		m_port = port;
 	}
