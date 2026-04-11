@@ -13,6 +13,7 @@ namespace tc::log
 	enum class Level { Debug, Info, Warn, Error, Fatal };
 
 	TC_COMMON_API void init(const std::string& appName);
+	TC_COMMON_API void shutdown();
 	TC_COMMON_API void setLevel(Level level);
 	TC_COMMON_API Level getLevel();
 	TC_COMMON_API void logMessage(Level level, const std::source_location& loc, std::string_view msg);

@@ -142,6 +142,15 @@ namespace tc::log
 		}
 	}
 
+	void shutdown()
+	{
+		g_logState.queue.shutdown();
+		if (g_logState.thread.joinable())
+			g_logState.thread.join();
+		if (g_logFile.is_open())
+			g_logFile.close();
+	}
+
 	void setLevel(Level level)
 	{
 		g_logLevel = level;
