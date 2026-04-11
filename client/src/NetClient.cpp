@@ -75,15 +75,15 @@ namespace tc
 		m_port = 0;
 	}
 
-	void NetClient::send(const std::string& message)
+	bool NetClient::send(const std::string& message)
 	{
 		if (message.empty())
-			return;
+			return false;
 
 		if (!isConnected())
 		{
-			std::println("Not connected, cannot send message");
-			return;
+			log::printAs("CLIENT", "Not connected, cannot send message");
+			return false;
 		}
 
 		net::Message<MsgTypes> msg;
@@ -91,17 +91,19 @@ namespace tc
 		msg << message;
 
 		m_connection->send(std::move(msg));
+		return true;
 	}
 
-	void NetClient::send(net::Message<MsgTypes> msg)
+	bool NetClient::send(net::Message<MsgTypes> msg)
 	{
 		if (!isConnected())
 		{
-			std::println("Not connected, cannot send message");
-			return;
+			log::printAs("CLIENT", "Not connected, cannot send message");
+			return false;
 		}
 
 		m_connection->send(std::move(msg));
+		return true;
 	}
 
 	bool NetClient::isConnected()
@@ -188,16 +190,14 @@ namespace tc
 	{
 		for (;;)
 		{
+			m_messagesIn.wait();
+
+			if (m_messagesIn.stopped() && m_messagesIn.empty())
 			{
-				std::scoped_lock lock(m_mtx);
-				if (!m_connection && m_messagesIn.stopped())
-				{
-					std::println("[CLIENT] No connection or message queue is stopped.");
-					break;
-				}
+				std::println("[CLIENT] Message queue is stopped.");
+				break;
 			}
 
-			m_messagesIn.wait();
 			auto optMsg = m_messagesIn.popFront();
 			if (!optMsg)
 				continue;

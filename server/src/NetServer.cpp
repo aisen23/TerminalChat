@@ -102,6 +102,7 @@ namespace tc
 					{
 						std::scoped_lock lock(m_mtx);
 						m_clients.push_back(client);
+						log::debug("Clients number: {}", m_clients.size());
 					}
 					std::println("[SERVER] Client connected: {}", uid);
 					m_handler.onClientConnect(client);

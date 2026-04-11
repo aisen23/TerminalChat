@@ -21,8 +21,8 @@ namespace tc
 
 		void connect();
 		void disconnect();
-		void send(const std::string& message);
-		void send(net::Message<MsgTypes> msg);
+		bool send(const std::string& message);
+		bool send(net::Message<MsgTypes> msg);
 
 		bool isConnected();
 		bool isConnecting();

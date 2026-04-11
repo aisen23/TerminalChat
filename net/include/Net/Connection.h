@@ -48,7 +48,26 @@ namespace net
 				co_return false;
 			}
 
-			// TODO: handshake
+			try
+			{
+				uint64_t magic = 0x1234567890ABCDEF;
+				co_await asio::async_write(m_socket, asio::buffer(&magic, sizeof(magic)), asio::use_awaitable);
+
+				uint64_t client_magic = 0;
+				co_await asio::async_read(m_socket, asio::buffer(&client_magic, sizeof(client_magic)), asio::use_awaitable);
+
+				if (client_magic != (magic ^ 0xDEADBEEF))
+				{
+					tc::log::error("Handshake failed for client {}", uid);
+					co_return false;
+				}
+			}
+			catch (const std::exception& e)
+			{
+				tc::log::error("Handshake error: {}", e.what());
+				co_return false;
+			}
+
 			m_id = uid;
 			auto executor = co_await asio::this_coro::executor;
 			asio::co_spawn(executor, readMessage(), asio::detached);
@@ -74,6 +93,20 @@ namespace net
 			if (ec)
 			{
 				tc::log::error("Failed to connect to endpoint: {}", ec.message());
+				co_return false;
+			}
+
+			try
+			{
+				uint64_t magic = 0;
+				co_await asio::async_read(m_socket, asio::buffer(&magic, sizeof(magic)), asio::use_awaitable);
+
+				magic ^= 0xDEADBEEF;
+				co_await asio::async_write(m_socket, asio::buffer(&magic, sizeof(magic)), asio::use_awaitable);
+			}
+			catch (const std::exception& e)
+			{
+				tc::log::error("Handshake error: {}", e.what());
 				co_return false;
 			}
 
@@ -152,13 +185,17 @@ namespace net
 			}
 			catch (const boost::system::system_error& e)
 			{
-				if (e.code() == asio::error::eof || e.code() == asio::error::connection_reset || e.code() == asio::error::connection_aborted)
+				if (e.code() == asio::error::eof || 
+					e.code() == asio::error::connection_reset || 
+					e.code() == asio::error::connection_aborted ||
+					e.code() == asio::error::operation_aborted ||
+					e.code().value() == 1236 || e.code().value() == 10054 || e.code().value() == 995)
 				{
 					tc::log::info("Connection read closed by peer.");
 				}
 				else
 				{
-					tc::log::error("Connection read error: {}", e.what());
+					tc::log::error("Connection read error: {} [code: {}]", e.what(), e.code().value());
 				}
 			}
 			catch (const std::exception& e)
@@ -206,13 +243,17 @@ namespace net
 			}
 			catch (const boost::system::system_error& e)
 			{
-				if (e.code() == asio::error::eof || e.code() == asio::error::connection_reset || e.code() == asio::error::connection_aborted)
+				if (e.code() == asio::error::eof || 
+					e.code() == asio::error::connection_reset || 
+					e.code() == asio::error::connection_aborted ||
+					e.code() == asio::error::operation_aborted ||
+					e.code().value() == 1236 || e.code().value() == 10054 || e.code().value() == 995)
 				{
 					tc::log::info("Connection write closed by peer.");
 				}
 				else
 				{
-					tc::log::error("Connection write error: {}", e.what());
+					tc::log::error("Connection write error: {} [code: {}]", e.what(), e.code().value());
 				}
 				std::scoped_lock lock(m_writingMtx);
 				m_writingMessage = false;

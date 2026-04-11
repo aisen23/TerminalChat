@@ -89,12 +89,16 @@ namespace tc
 				if (line.empty())
 					continue;
 
+				bool format = true;
 				if (line.starts_with("!connect"))
 					connect(std::move(line));
 				else if ("!disconnect" == line)
-					pushTask([this] { m_netClient->disconnect(); });
+					pushTask([this] { m_netClient->disconnect(); saveData(); });
 				else if (isIn(line, "!quit", "!exit"))
+				{
 					stop();
+					format = false;
+				}
 				else if (line.starts_with("!setname"))
 				{
 					auto parts = utils::split(line, ' ');
@@ -106,12 +110,13 @@ namespace tc
 				{
 					net::Message<MsgTypes> msg{ MsgTypes::Ping };
 					m_pingTime = std::chrono::steady_clock::now();
-					m_netClient->send(std::move(msg));
+					format = m_netClient->send(std::move(msg));
 				}
 				else
-					m_netClient->send(line);
+					format = m_netClient->send(line);
 
-				formatText(line, true);
+				if (format)
+					formatText(line, true);
 			}});
 	}
 
@@ -163,8 +168,11 @@ namespace tc
 
 		json j;
 		j["name"] = m_name;
-		j["ip"] = m_netClient->ip();
-		j["port"] = m_netClient->port();
+		if (m_netClient)
+		{
+			j["ip"] = m_netClient->ip();
+			j["port"] = m_netClient->port();
+		}
 		file << j.dump(4);
 	}
 
