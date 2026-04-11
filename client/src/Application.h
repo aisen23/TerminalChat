@@ -25,6 +25,7 @@ namespace tc
 
 		void setName(std::string name);
 		void connect(std::string&& data);
+		void formatText(const std::string& text, bool addMe);
 
 	private:
 		std::unique_ptr<NetClient> m_netClient;
@@ -35,5 +36,6 @@ namespace tc
 		Queue<Task> m_tasks;
 		std::jthread m_inputWorker;
 		std::string m_name;
+		std::chrono::time_point<std::chrono::steady_clock> m_pingTime;
 	};
 }

@@ -105,15 +105,41 @@ namespace tc
 					if (!newName.empty())
 						pushTask([this, newName = std::move(newName)]() mutable { setName(std::move(newName)); });
 				}
+				else if (line == "!ping")
+				{
+					net::Message<MsgTypes> msg{ MsgTypes::Ping };
+					m_pingTime = std::chrono::steady_clock::now();
+					m_netClient->send(std::move(msg));
+				}
 				else
-					m_netClient->send(std::move(line));
+				{
+					m_netClient->send(line);
+				}
+
+				formatText(line, true);
 			}
 			});
 	}
 
 	void Application::onReceive(net::Message<MsgTypes> msg)
 	{
-		tc::log::info("Received message: id={}, size={}", static_cast<int>(msg.header.id), msg.size());
+		tc::log::debug("Received message: id={}, size={}", static_cast<int>(msg.header.id), msg.size());
+		switch (msg.header.id) {
+		case MsgTypes::ChatText:
+		{
+			std::string text;
+			msg >> text;
+			formatText(text, false);
+			break;
+		}
+		case MsgTypes::Ping:
+		{
+			std::chrono::duration<double, std::milli> latency = std::chrono::steady_clock::now() - m_pingTime;
+			std::string text = std::format("Pong! Latency: {:.2f} ms", latency.count());
+			formatText(text, false);
+			break;
+		}
+		}
 	}
 
 	void Application::pushTask(std::move_only_function<void()> task)
@@ -178,8 +204,7 @@ namespace tc
 		m_name = std::move(name);
 		net::Message<MsgTypes> msg{ MsgTypes::ChangeNickname };
 		msg << m_name;
-		//if (m_netClient->isConnected())
-		//	m_netClient->send(std::move(msg));
+		m_netClient->send(std::move(msg));
 
 		saveData();
 	}
@@ -223,5 +248,20 @@ namespace tc
 				tc::log::warn("Incorrect port={}, details: {}", portStr, e.what());
 			}
 		}
+	}
+
+	void Application::formatText(const std::string& text, bool addMe)
+	{
+		auto now = std::chrono::system_clock::now();
+		auto timeT = std::chrono::system_clock::to_time_t(now);
+		std::tm tm{};
+#ifdef _WIN32
+		localtime_s(&tm, &timeT);
+#else
+		localtime_r(&timeT, &tm);
+#endif
+		pushTask([tm, text = std::string(text), addMe] {
+			std::print("\x1b[1A\x1b[2K\r[{:02}:{:02}:{:04} {:02}:{:02}:{:02}] {}{}\n", tm.tm_mon + 1, tm.tm_mday, tm.tm_year + 1900, tm.tm_hour, tm.tm_min, tm.tm_sec, addMe ? "[Me] : " : "", text);
+			});
 	}
 }

@@ -62,20 +62,26 @@ namespace tc
 		asio::co_spawn(m_context, connectImpl(), asio::detached);
 	}
 
-	void NetClient::send(std::string message)
+	void NetClient::send(const std::string& message)
 	{
 		if (message.empty())
 			return;
 
-		net::Message<MsgTypes> msg;
-		if ("!ping" == message)
-			msg.header.id = MsgTypes::Ping;
-		else
+		if (!isConnected())
 		{
-			msg.header.id = MsgTypes::ChatText;
-			msg << std::move(message);
+			std::println("Not connected, cannot send message");
+			return;
 		}
 
+		net::Message<MsgTypes> msg;
+		msg.header.id = MsgTypes::ChatText;
+		msg << message;
+
+		m_connection->send(std::move(msg));
+	}
+
+	void NetClient::send(net::Message<MsgTypes> msg)
+	{
 		if (!isConnected())
 		{
 			std::println("Not connected, cannot send message");
