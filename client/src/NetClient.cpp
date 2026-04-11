@@ -91,6 +91,12 @@ namespace tc
 		return m_connection && m_connection->isConnected();
 	}
 
+	bool NetClient::isConnecting()
+	{
+		std::scoped_lock lock(m_mtx);
+		return m_connecting;
+	}
+
 	bool NetClient::isConnectible()
 	{
 		std::scoped_lock lock(m_mtx);
@@ -120,6 +126,7 @@ namespace tc
 		try
 		{
 			asio::ip::tcp::resolver resolver{ m_context };
+			log::print("Resolving {}:{}...", m_ip, m_port);
 			auto endpoints = co_await resolver.async_resolve(m_ip, std::format("{}", m_port), asio::use_awaitable);
 
 			auto connection = std::make_shared<net::Connection<MsgTypes>>(

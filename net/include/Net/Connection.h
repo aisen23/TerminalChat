@@ -3,6 +3,7 @@
 #include "Message.h"
 
 #include <Common/Queue.h>
+#include <Common/Log.h>
 
 #include <boost/asio.hpp>
 
@@ -37,7 +38,7 @@ namespace net
 		{
 			if (m_owner != Owner::Server)
 			{
-
+				std::println("Server cannot connect to itself");
 				co_return false;
 			}
 
@@ -51,8 +52,7 @@ namespace net
 			m_id = uid;
 			auto executor = co_await asio::this_coro::executor;
 			asio::co_spawn(executor, readMessage(), asio::detached);
-			asio::co_spawn(executor, writeMessage(), asio::detached);
-			std::println("Connection validated for UID: {}", m_id);
+			tc::log::info("Connection validated for UID: {}", m_id);
 			co_return true;
 		}
 
@@ -73,13 +73,12 @@ namespace net
 
 			if (ec)
 			{
-				std::println("[ERROR] Failed to connect to endpoint: {}", ec.message());
+				tc::log::error("Failed to connect to endpoint: {}", ec.message());
 				co_return false;
 			}
 
 			auto executor = co_await asio::this_coro::executor;
 			asio::co_spawn(executor, readMessage(), asio::detached);
-			asio::co_spawn(executor, writeMessage(), asio::detached);
 			co_return true;
 		}
 
@@ -96,7 +95,20 @@ namespace net
 
 		void send(Message<T> msg)
 		{
-			asio::post(m_context, [this, msg = std::move(msg)]() { m_messagesOut.pushBack(std::move(msg)); });
+			asio::post(m_context, [this, msg = std::move(msg)]() mutable {
+				bool wasWriting = false;
+				{
+					std::scoped_lock lock(m_writingMtx);
+					wasWriting = m_writingMessage;
+					m_messagesOut.pushBack(std::move(msg));
+					if (!wasWriting)
+						m_writingMessage = true;
+				}
+				if (!wasWriting)
+				{
+					asio::co_spawn(m_context, writeMessage(), asio::detached);
+				}
+			});
 		}
 
 	private:
@@ -119,7 +131,7 @@ namespace net
 					{
 						if (msg.header.size > MAX_MESSAGE_SIZE)
 						{
-							std::println("[ERROR] Connection read error: message too large ({})", msg.header.size);
+							tc::log::error("Connection read error: message too large ({})", msg.header.size);
 							boost::system::error_code ec;
 							m_socket.close(ec);
 							co_return;
@@ -140,7 +152,7 @@ namespace net
 			}
 			catch (const std::exception& e)
 			{
-				std::println("[ERROR] Connection read error: {}", e.what());
+				tc::log::error("Connection read error: {}", e.what());
 			}
 
 			if (m_socket.is_open())
@@ -156,19 +168,22 @@ namespace net
 		{
 			try
 			{
-				auto executor = co_await asio::this_coro::executor;
-
 				for (;;)
 				{
 					if (!m_socket.is_open())
-						co_return;
+						break;
 
-					m_messagesOut.wait();
-					auto optMsg = m_messagesOut.popFront();
-					if (!optMsg)
-						continue;
-
-					Message<T> msg = std::move(*optMsg);
+					Message<T> msg;
+					{
+						std::scoped_lock lock(m_writingMtx);
+						auto optMsg = m_messagesOut.popFront();
+						if (!optMsg)
+						{
+							m_writingMessage = false;
+							break;
+						}
+						msg = std::move(*optMsg);
+					}
 
 					std::vector<asio::const_buffer> buffers;
 					buffers.emplace_back(asio::buffer(&msg.header, sizeof(msg.header)));
@@ -180,10 +195,12 @@ namespace net
 			}
 			catch (const std::exception& e)
 			{
-				std::println("[ERROR] Connection write error: {}", e.what());
+				tc::log::error("Connection write error: {}", e.what());
+				std::scoped_lock lock(m_writingMtx);
+				m_writingMessage = false;
 			}
 
-			if (m_socket.is_open())
+			if (!m_socket.is_open())
 			{
 				boost::system::error_code ec;
 				m_socket.close(ec);
@@ -199,5 +216,7 @@ namespace net
 		tc::Queue<OwnedMessage<T>>& m_messagesIn;
 		Owner m_owner = Owner::Server;
 		std::string m_id;
+		std::mutex m_writingMtx;
+		bool m_writingMessage = false;
 	};
 }

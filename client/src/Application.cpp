@@ -40,11 +40,12 @@ namespace tc
 	void Application::checkNetClient()
 	{
 		static bool reported = false;
-		if (!m_netClient->isConnected())
+		if (!m_netClient->isConnecting() && !m_netClient->isConnected())
 		{
 			if (m_netClient->isConnectible())
 			{
 				reported = false;
+				m_netClient->start();
 				m_netClient->connect();
 			}
 			else
@@ -112,9 +113,9 @@ namespace tc
 
 	void Application::onReceive(net::Message<MsgTypes> msg)
 	{
-		std::println("Received message: id={}, size={}", static_cast<int>(msg.header.id), msg.size());
+		tc::log::info("Received message: id={}, size={}", static_cast<int>(msg.header.id), msg.size());
 	}
-	
+
 	void Application::pushTask(std::move_only_function<void()> task)
 	{
 		std::scoped_lock lock(m_mtx);
@@ -124,7 +125,7 @@ namespace tc
 
 	void Application::stop()
 	{
-		std::println("Stop requested...");
+		tc::log::info("Stop requested...");
 		std::scoped_lock lock(m_mtx);
 		m_stop = true;
 		m_cv.notify_one();
@@ -136,12 +137,14 @@ namespace tc
 		std::ofstream file{ dir / "client_data.json" };
 		if (!file.is_open())
 		{
-			std::println("[ERROR] Failed to open file.");
+			tc::log::error("Failed to open file.");
 			return;
 		}
 
 		json j;
 		j["name"] = m_name;
+		j["ip"] = m_netClient->ip();
+		j["port"] = m_netClient->port();
 		file << j.dump(4);
 	}
 
@@ -151,14 +154,23 @@ namespace tc
 		std::ifstream file( dir / "client_data.json");
 		if (!file.is_open())
 		{
-			std::println("[ERROR] Failed to open file.");
+			tc::log::warn("Failed to open file.");
 			return;
 		}
 
 		json j;
 		file >> j;
 
-		m_name = j["name"];
+		if (j.contains("name"))
+			m_name = j["name"];
+
+		if (j.contains("ip") && j.contains("port"))
+		{
+			std::string ip = j["ip"];
+			uint32_t port = j["port"];
+			if (!ip.empty() && port != 0)
+				m_netClient->setFullAddress(std::move(ip), port);
+		}
 	}
 
 	void Application::setName(std::string name)
@@ -201,7 +213,10 @@ namespace tc
 				if (pos != portStr.size())
 					throw std::runtime_error("Extra character detected.");
 
-				pushTask([this, host = std::move(host), port] { m_netClient->setFullAddress(std::move(host), port); m_netClient->start(); });
+				pushTask([this, host = std::move(host), port] { 
+					m_netClient->setFullAddress(std::move(host), port); 
+					saveData();
+				});
 			}
 			catch (const std::exception& e)
 			{

@@ -23,6 +23,7 @@ namespace tc
 		void send(std::string message);
 
 		bool isConnected();
+		bool isConnecting();
 		bool isConnectible();
 		const std::string& ip();
 		uint32_t port();
