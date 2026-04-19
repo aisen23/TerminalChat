@@ -7,6 +7,7 @@ namespace tc
 		Ping,
 		ChatText,
 		ChangeNickname,
+		ConnectionAccepted,
 	};
 
 	constexpr int MIN_PORT = 40000;

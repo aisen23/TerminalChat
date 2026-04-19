@@ -138,6 +138,11 @@ namespace tc
 			formatText(text, false);
 			break;
 		}
+		case MsgTypes::ConnectionAccepted:
+		{
+			sendName();
+			break;
+		}
 		}
 	}
 
@@ -203,13 +208,26 @@ namespace tc
 
 	void Application::setName(std::string name)
 	{
-		m_name = std::move(name);
+		if (name.empty() || m_name == name)
+			return;
+
+		sendName();
+
+		saveData();
+	}
+
+	void Application::sendName()
+	{
+		if (m_name.empty())
+		{
+			log::warn("Name cannot be empty.");
+			return;
+		}
+
 		net::Message<MsgTypes> msg{ MsgTypes::ChangeNickname };
 		msg << m_name;
 		if (m_netClient->isConnected())
 			m_netClient->send(std::move(msg));
-
-		saveData();
 	}
 
 	void Application::connect(std::string&& data)

@@ -165,6 +165,7 @@ namespace tc
 	{
 		pushTask([this, client]() {
 			std::println("New client connected: {}", client->name);
+			m_netServer->sendToClient(client, net::Message<MsgTypes>{ MsgTypes::ConnectionAccepted });
 		});
 	}
 

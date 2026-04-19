@@ -24,6 +24,7 @@ namespace tc
 		void loadData();
 
 		void setName(std::string name);
+		void sendName();
 		void connect(std::string&& data);
 		void formatText(const std::string& text, bool addMe);
 

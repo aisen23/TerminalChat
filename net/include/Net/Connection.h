@@ -185,8 +185,8 @@ namespace net
 			}
 			catch (const boost::system::system_error& e)
 			{
-				if (e.code() == asio::error::eof || 
-					e.code() == asio::error::connection_reset || 
+				if (e.code() == asio::error::eof ||
+					e.code() == asio::error::connection_reset ||
 					e.code() == asio::error::connection_aborted ||
 					e.code() == asio::error::operation_aborted ||
 					e.code().value() == 1236 || e.code().value() == 10054 || e.code().value() == 995)
@@ -243,8 +243,8 @@ namespace net
 			}
 			catch (const boost::system::system_error& e)
 			{
-				if (e.code() == asio::error::eof || 
-					e.code() == asio::error::connection_reset || 
+				if (e.code() == asio::error::eof ||
+					e.code() == asio::error::connection_reset ||
 					e.code() == asio::error::connection_aborted ||
 					e.code() == asio::error::operation_aborted ||
 					e.code().value() == 1236 || e.code().value() == 10054 || e.code().value() == 995)
