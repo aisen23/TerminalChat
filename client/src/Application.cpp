@@ -1,5 +1,6 @@
 #include "pch.h"
 #include "Application.h"
+#include "Utils.h"
 
 using json = nlohmann::json;
 
@@ -27,7 +28,12 @@ namespace tc
 			if (!m_tasks.empty())
 			{
 				auto task = m_tasks.popFront();
-				(*task)();
+				if (task)
+				{
+					lock.unlock();
+					(*task)();
+					lock.lock();
+				}
 			}
 		}
 
@@ -46,7 +52,7 @@ namespace tc
 			{
 				reported = false;
 				m_netClient->start();
-				m_netClient->connect();
+				m_netClient->connect(m_uuid, m_name);
 			}
 			else
 			{
@@ -65,6 +71,14 @@ namespace tc
 		m_netClient = std::make_unique<NetClient>(*this);
 		loadData();
 
+		bool stateChanged = false;
+		if (m_uuid.empty())
+		{
+			m_uuid = utils::generateUUID();
+			log::debug("Generated UUID: {}", m_uuid);
+			stateChanged = true;
+		}
+
 		if (m_name.empty())
 		{
 			std::string name;
@@ -73,8 +87,11 @@ namespace tc
 				std::print("Enter your name: ");
 				std::getline(std::cin, name);
 			}
-			setName(name);
+			stateChanged |= setName(name);
 		}
+
+		if (stateChanged)
+			saveData();
 	}
 
 	void Application::startInputWorker()
@@ -104,7 +121,13 @@ namespace tc
 					auto parts = utils::split(line, ' ');
 					std::string newName = parts.size() > 1 ? parts.at(1) : std::string{};
 					if (!newName.empty())
-						pushTask([this, newName = std::move(newName)]() mutable { setName(std::move(newName)); });
+						pushTask([this, newName = std::move(newName)]() mutable {
+							if (setName(std::move(newName)))
+							{
+								saveData();
+								sendName();
+							}
+						});
 				}
 				else if (line == "!ping")
 				{
@@ -140,7 +163,8 @@ namespace tc
 		}
 		case MsgTypes::ConnectionAccepted:
 		{
-			sendName();
+			log::info("Connection accepted!");
+			log::printMessage("SERVER", "You are in chat!");
 			break;
 		}
 		}
@@ -173,6 +197,7 @@ namespace tc
 
 		json j;
 		j["name"] = m_name;
+		j["uuid"] = m_uuid;
 		if (m_netClient)
 		{
 			j["ip"] = m_netClient->ip();
@@ -197,6 +222,9 @@ namespace tc
 		if (j.contains("name"))
 			m_name = j["name"];
 
+		if (j.contains("uuid"))
+			m_uuid = j["uuid"];
+
 		if (j.contains("ip") && j.contains("port"))
 		{
 			std::string ip = j["ip"];
@@ -206,14 +234,12 @@ namespace tc
 		}
 	}
 
-	void Application::setName(std::string name)
+	bool Application::setName(std::string name)
 	{
 		if (name.empty() || m_name == name)
-			return;
+			return false;
 
-		sendName();
-
-		saveData();
+		return std::exchange(m_name, name) != m_name;
 	}
 
 	void Application::sendName()
@@ -226,6 +252,7 @@ namespace tc
 
 		net::Message<MsgTypes> msg{ MsgTypes::ChangeNickname };
 		msg << m_name;
+
 		if (m_netClient->isConnected())
 			m_netClient->send(std::move(msg));
 	}

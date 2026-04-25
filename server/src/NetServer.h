@@ -1,4 +1,5 @@
 #pragma once
+#include <unordered_map>
 
 namespace tc
 {
@@ -8,7 +9,7 @@ namespace tc
 	{
 		std::shared_ptr<net::Connection<MsgTypes>> connection{};
 		std::string name{};
-		uint32_t uuid{};
+		std::string uuid{};
 	};
 
 	class NetServerHandler
@@ -45,7 +46,7 @@ namespace tc
 		std::jthread m_recvWorker;
 
 		Queue<net::OwnedMessage<MsgTypes>> m_messagesIn;
-		std::vector<std::shared_ptr<Client>> m_clients;
+		std::unordered_map<std::string, std::shared_ptr<Client>> m_clientMap;
 		std::mutex m_mtx;
 	};
 }

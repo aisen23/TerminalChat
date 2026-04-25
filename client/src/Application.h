@@ -23,7 +23,7 @@ namespace tc
 		void saveData();
 		void loadData();
 
-		void setName(std::string name);
+		bool setName(std::string name);
 		void sendName();
 		void connect(std::string&& data);
 		void formatText(const std::string& text, bool addMe);
@@ -37,6 +37,7 @@ namespace tc
 		Queue<Task> m_tasks;
 		std::jthread m_inputWorker;
 		std::string m_name;
+		std::string m_uuid;
 		std::chrono::time_point<std::chrono::steady_clock> m_pingTime;
 	};
 }

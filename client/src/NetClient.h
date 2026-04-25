@@ -19,7 +19,7 @@ namespace tc
 		void start();
 		void stop();
 
-		void connect();
+		void connect(const std::string& uuid, const std::string& name);
 		void disconnect();
 		bool send(const std::string& message);
 		bool send(net::Message<MsgTypes> msg);
@@ -33,7 +33,7 @@ namespace tc
 		void setFullAddress(std::string ip, uint32_t port);
 
 	private:
-		asio::awaitable<void> connectImpl();
+		asio::awaitable<void> connectImpl(const std::string& uuid, const std::string& name);
 		void receiveMsgLoop();
 
 	private:

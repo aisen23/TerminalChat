@@ -8,6 +8,9 @@
 #include <Net/Connection.h>
 
 #include <nlohmann/json.hpp>
+#include <boost/uuid/uuid.hpp>
+#include <boost/uuid/uuid_generators.hpp>
+#include <boost/uuid/uuid_io.hpp>
 
 #include <chrono>
 #include <condition_variable>

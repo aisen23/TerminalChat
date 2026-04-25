@@ -8,6 +8,8 @@ set(SRC
 	src/Application.cpp
 	src/NetClient.h
 	src/NetClient.cpp
+	src/Utils.h
+	src/Utils.cpp
 
 	"${APP_OUTPUT_NAME}.LogConfig.txt"
 )

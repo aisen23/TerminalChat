@@ -52,14 +52,14 @@ namespace tc
 		}
 	}
 
-	void NetClient::connect()
+	void NetClient::connect(const std::string& uuid, const std::string& name)
 	{
 		std::scoped_lock lock(m_mtx);
 		if (m_connecting || (m_connection && m_connection->isConnected()))
 			return;
 
 		m_connecting = true;
-		asio::co_spawn(m_context, connectImpl(), asio::detached);
+		asio::co_spawn(m_context, connectImpl(uuid, name), asio::detached);
 	}
 
 	void NetClient::disconnect()
@@ -143,7 +143,7 @@ namespace tc
 		m_port = port;
 	}
 
-	asio::awaitable<void> NetClient::connectImpl()
+	asio::awaitable<void> NetClient::connectImpl(const std::string& uuid, const std::string& name)
 	{
 		try
 		{
@@ -157,7 +157,7 @@ namespace tc
 				asio::ip::tcp::socket(m_context),
 				m_messagesIn);
 
-			bool ok = co_await connection->connectToServer(endpoints);
+			bool ok = co_await connection->connectToServer(endpoints, uuid, name);
 
 			std::scoped_lock lock(m_mtx);
 			m_connecting = false;

@@ -32,9 +32,12 @@ namespace net
 		{}
 		virtual ~Connection()
 		{}
-		const std::string& GetId() const { return m_id; }
 
-		asio::awaitable<bool> connectToClient(const std::string& uid)
+		std::function<void(std::shared_ptr<Connection<T>>)> onDisconnect;
+		const std::string& getUuid() const { return m_uuid; }
+		const std::string& getName() const { return m_name; }
+
+		asio::awaitable<bool> connectToClient()
 		{
 			if (m_owner != Owner::Server)
 			{
@@ -58,9 +61,19 @@ namespace net
 
 				if (client_magic != (magic ^ 0xDEADBEEF))
 				{
-					tc::log::error("Handshake failed for client {}", uid);
+					tc::log::error("Handshake failed: invalid magic response");
 					co_return false;
 				}
+
+				uint32_t uuidLen = 0;
+				co_await asio::async_read(m_socket, asio::buffer(&uuidLen, sizeof(uuidLen)), asio::use_awaitable);
+				m_uuid.resize(uuidLen);
+				co_await asio::async_read(m_socket, asio::buffer(m_uuid.data(), uuidLen), asio::use_awaitable);
+
+				uint32_t nameLen = 0;
+				co_await asio::async_read(m_socket, asio::buffer(&nameLen, sizeof(nameLen)), asio::use_awaitable);
+				m_name.resize(nameLen);
+				co_await asio::async_read(m_socket, asio::buffer(m_name.data(), nameLen), asio::use_awaitable);
 			}
 			catch (const std::exception& e)
 			{
@@ -68,14 +81,13 @@ namespace net
 				co_return false;
 			}
 
-			m_id = uid;
 			auto executor = co_await asio::this_coro::executor;
 			asio::co_spawn(executor, readMessage(), asio::detached);
-			tc::log::info("Connection validated for UID: {}", m_id);
+			tc::log::info("Connection validated for UID: {}", m_uuid);
 			co_return true;
 		}
 
-		asio::awaitable<bool> connectToServer(const asio::ip::tcp::resolver::results_type& endpoints)
+		asio::awaitable<bool> connectToServer(const asio::ip::tcp::resolver::results_type& endpoints, const std::string& uuid, const std::string& name)
 		{
 			if (m_owner != Owner::Client)
 			{
@@ -103,6 +115,14 @@ namespace net
 
 				magic ^= 0xDEADBEEF;
 				co_await asio::async_write(m_socket, asio::buffer(&magic, sizeof(magic)), asio::use_awaitable);
+
+				uint32_t uuidLen = static_cast<uint32_t>(uuid.size());
+				co_await asio::async_write(m_socket, asio::buffer(&uuidLen, sizeof(uuidLen)), asio::use_awaitable);
+				co_await asio::async_write(m_socket, asio::buffer(uuid.data(), uuidLen), asio::use_awaitable);
+
+				uint32_t nameLen = static_cast<uint32_t>(name.size());
+				co_await asio::async_write(m_socket, asio::buffer(&nameLen, sizeof(nameLen)), asio::use_awaitable);
+				co_await asio::async_write(m_socket, asio::buffer(name.data(), nameLen), asio::use_awaitable);
 			}
 			catch (const std::exception& e)
 			{
@@ -209,6 +229,9 @@ namespace net
 				m_socket.close(ec);
 			}
 
+			if (onDisconnect)
+				onDisconnect(this->shared_from_this());
+
 			co_return;
 		}
 
@@ -280,7 +303,8 @@ namespace net
 		tc::Queue<Message<T>> m_messagesOut;
 		tc::Queue<OwnedMessage<T>>& m_messagesIn;
 		Owner m_owner = Owner::Server;
-		std::string m_id;
+		std::string m_uuid;
+		std::string m_name;
 		std::mutex m_writingMtx;
 		bool m_writingMessage = false;
 	};

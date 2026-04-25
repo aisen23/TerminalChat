@@ -59,7 +59,7 @@ namespace tc
 
 		{
 			std::scoped_lock lock(m_mtx);
-			m_clients.clear();
+			m_clientMap.clear();
 			m_context.restart();
 		}
 	}
@@ -73,7 +73,7 @@ namespace tc
 	void NetServer::sendToAll(net::Message<MsgTypes> msg, std::shared_ptr<Client> ignoreClient)
 	{
 		std::scoped_lock lock(m_mtx);
-		for (auto& client : m_clients)
+		for (auto const& [uuid, client] : m_clientMap)
 			if (client != ignoreClient && client->connection && client->connection->isConnected())
 				client->connection->send(msg);
 	}
@@ -92,19 +92,34 @@ namespace tc
 					std::move(socket),
 					m_messagesIn);
 
-				static int idCounter = 1000;
-				std::string uid = std::format("User{}", idCounter++);
-
-				bool ok = co_await connection->connectToClient(uid);
+				bool ok = co_await connection->connectToClient();
 				if (ok)
 				{
-					auto client = std::make_shared<Client>(Client{connection, uid, static_cast<uint32_t>(idCounter)});
+					const std::string& uuid = connection->getUuid();
+					const std::string& name = connection->getName();
+					auto client = std::make_shared<Client>(Client{connection, name, uuid});
 					{
+						connection->onDisconnect = [this, client](auto /*conn*/) {
+							m_handler.pushTask([this, client] {
+								std::shared_ptr<Client> toDisconnect;
+								{
+									std::scoped_lock lock(m_mtx);
+									if (auto it = m_clientMap.find(client->uuid); it != m_clientMap.end())
+									{
+										toDisconnect = it->second;
+										m_clientMap.erase(it);
+									}
+								}
+								if (toDisconnect)
+									m_handler.onClientDisconnect(toDisconnect);
+							});
+						};
+
 						std::scoped_lock lock(m_mtx);
-						m_clients.push_back(client);
-						log::debug("Clients number: {}", m_clients.size());
+						m_clientMap[uuid] = client;
+						log::debug("Clients number: {}", m_clientMap.size());
 					}
-					std::println("[SERVER] Client connected: {}", uid);
+					std::println("[SERVER] Client connected with UUID: {}", uuid);
 					m_handler.onClientConnect(client);
 				}
 			}
@@ -126,33 +141,11 @@ namespace tc
 		using namespace std::chrono_literals;
 		for (;;)
 		{
-			bool hasMsg = m_messagesIn.waitFor(100ms);
-			if (m_messagesIn.stopped())
+			m_messagesIn.wait();
+			if (m_messagesIn.stopped() && m_messagesIn.empty())
 				break;
 
-			std::vector<std::shared_ptr<Client>> disconnected;
-			{
-				std::scoped_lock lock(m_mtx);
-				for (auto it = m_clients.begin(); it != m_clients.end();)
-				{
-					if (!(*it)->connection || !(*it)->connection->isConnected())
-					{
-						disconnected.push_back(*it);
-						it = m_clients.erase(it);
-					}
-					else
-					{
-						++it;
-					}
-				}
-			}
-
-			for (auto& client : disconnected)
-			{
-				m_handler.onClientDisconnect(client);
-			}
-
-			if (!hasMsg)
+			if (m_messagesIn.empty())
 				continue;
 
 			auto optMsg = m_messagesIn.popFront();
@@ -165,14 +158,8 @@ namespace tc
 				std::shared_ptr<Client> foundClient;
 				{
 					std::scoped_lock lock(m_mtx);
-					for (auto& client : m_clients)
-					{
-						if (client->connection == ownedMsg.remote)
-						{
-							foundClient = client;
-							break;
-						}
-					}
+					if (auto it = m_clientMap.find(ownedMsg.remote->getUuid()); it != m_clientMap.end())
+						foundClient = it->second;
 				}
 
 				if (foundClient)

@@ -25,7 +25,11 @@ namespace tc
 			{
 				auto task = m_tasks.popFront();
 				if (task)
+				{
+					lock.unlock();
 					(*task)();
+					lock.lock();
+				}
 			}
 		}
 
