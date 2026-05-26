@@ -17,7 +17,6 @@ namespace tc
 	void NetClient::start()
 	{
 		std::scoped_lock lock(m_mtx);
-		m_messagesIn.restart();
 		if (m_worker.joinable())
 			return;
 
@@ -26,22 +25,16 @@ namespace tc
 
 	void NetClient::stop()
 	{
-		m_messagesIn.shutdown();
-
 		std::jthread worker;
-		std::jthread recvWorker;
 		{
 			std::scoped_lock lock(m_mtx);
 			m_context.stop();
 
 			worker = std::move(m_worker);
-			recvWorker = std::move(m_recvWorker);
 		}
 
 		if (worker.joinable())
 			worker.join();
-		if (recvWorker.joinable())
-			recvWorker.join();
 
 		{
 			std::scoped_lock lock(m_mtx);
@@ -154,8 +147,15 @@ namespace tc
 			auto connection = std::make_shared<net::Connection<MsgTypes>>(
 				net::Connection<MsgTypes>::Owner::Client,
 				m_context,
-				asio::ip::tcp::socket(m_context),
-				m_messagesIn);
+				asio::ip::tcp::socket(m_context));
+
+			connection->onMessageReceived = [this](net::OwnedMessage<MsgTypes> ownedMsg) {
+				m_handler.onReceive(std::move(ownedMsg.msg));
+			};
+
+			connection->onDisconnect = [this](auto) {
+				// Handle client-side disconnection logic if needed
+			};
 
 			bool ok = co_await connection->connectToServer(endpoints, uuid, name);
 
@@ -171,9 +171,6 @@ namespace tc
 			{
 				m_connection = std::move(connection);
 				tc::log::info("Connected!");
-
-				if (!m_recvWorker.joinable())
-					m_recvWorker = std::jthread([this] { receiveMsgLoop(); });
 			}
 		}
 		catch (const std::exception& e)
@@ -184,32 +181,5 @@ namespace tc
 		}
 
 		co_return;
-	}
-
-	void NetClient::receiveMsgLoop()
-	{
-		for (;;)
-		{
-			m_messagesIn.wait();
-
-			if (m_messagesIn.stopped() && m_messagesIn.empty())
-			{
-				std::println("[CLIENT] Message queue is stopped.");
-				break;
-			}
-
-			auto optMsg = m_messagesIn.popFront();
-			if (!optMsg)
-				continue;
-
-			try
-			{
-				m_handler.onReceive(std::move((*optMsg).msg));
-			}
-			catch (const std::exception& e)
-			{
-				std::println("[CLIENT] Error processing message: {}", e.what());
-			}
-		}
 	}
 }

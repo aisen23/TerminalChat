@@ -132,7 +132,10 @@ namespace tc
 				else if (line == "!ping")
 				{
 					net::Message<MsgTypes> msg{ MsgTypes::Ping };
-					m_pingTime = std::chrono::steady_clock::now();
+					{
+						std::scoped_lock lock(m_mtx);
+						m_pingTime = std::chrono::steady_clock::now();
+					}
 					format = m_netClient->send(std::move(msg));
 				}
 				else
@@ -146,7 +149,8 @@ namespace tc
 	void Application::onReceive(net::Message<MsgTypes> msg)
 	{
 		tc::log::debug("Received message: id={}, size={}", static_cast<int>(msg.header.id), msg.size());
-		switch (msg.header.id) {
+		switch (msg.header.id)
+		{
 		case MsgTypes::ChatText:
 		{
 			std::string text;
@@ -156,7 +160,13 @@ namespace tc
 		}
 		case MsgTypes::Ping:
 		{
-			std::chrono::duration<double, std::milli> latency = std::chrono::steady_clock::now() - m_pingTime;
+			auto now = std::chrono::steady_clock::now();
+			std::chrono::time_point<std::chrono::steady_clock> pingStart;
+			{
+				std::scoped_lock lock(m_mtx);
+				pingStart = m_pingTime;
+			}
+			std::chrono::duration<double, std::milli> latency = now - pingStart;
 			std::string text = std::format("Pong! Latency: {:.2f} ms", latency.count());
 			formatText(text, false);
 			break;
@@ -308,8 +318,6 @@ namespace tc
 #else
 		localtime_r(&timeT, &tm);
 #endif
-		pushTask([tm, text = std::string(text), addMe] {
-			std::print("\x1b[1A\x1b[2K\r[{:02}:{:02}:{:04} {:02}:{:02}:{:02}] {}{}\n", tm.tm_mon + 1, tm.tm_mday, tm.tm_year + 1900, tm.tm_hour, tm.tm_min, tm.tm_sec, addMe ? "[Me] : " : "", text);
-			});
+		std::print("\x1b[1A\x1b[2K\r[{:02}:{:02}:{:04} {:02}:{:02}:{:02}] {}{}\n", tm.tm_mon + 1, tm.tm_mday, tm.tm_year + 1900, tm.tm_hour, tm.tm_min, tm.tm_sec, addMe ? "[Me] : " : "", text);
 	}
 }

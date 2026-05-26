@@ -34,17 +34,14 @@ namespace tc
 
 	private:
 		asio::awaitable<void> connectImpl(const std::string& uuid, const std::string& name);
-		void receiveMsgLoop();
 
 	private:
 		NetClientHandler& m_handler;
 		asio::io_context m_context;
 		asio::executor_work_guard<asio::io_context::executor_type> m_workGuard;
 		std::jthread m_worker;
-		std::jthread m_recvWorker;
 
 		std::shared_ptr<net::Connection<MsgTypes>> m_connection;
-		Queue<net::OwnedMessage<MsgTypes>> m_messagesIn;
 		std::string m_ip;
 		uint32_t m_port{};
 		std::mutex m_mtx;

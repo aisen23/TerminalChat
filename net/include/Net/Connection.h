@@ -27,13 +27,14 @@ namespace net
 			Server
 		};
 	public:
-		Connection(Owner owner, asio::io_context& context, asio::ip::tcp::socket socket, tc::Queue<OwnedMessage<T>>& messagesIn)
-			: m_owner{ owner }, m_context{ context }, m_socket(std::move(socket)), m_messagesIn{ messagesIn }
+		Connection(Owner owner, asio::io_context& context, asio::ip::tcp::socket socket)
+			: m_owner{ owner }, m_context{ context }, m_socket(std::move(socket))
 		{}
 		virtual ~Connection()
 		{}
 
 		std::function<void(std::shared_ptr<Connection<T>>)> onDisconnect;
+		std::function<void(OwnedMessage<T>)> onMessageReceived;
 		const std::string& getUuid() const { return m_uuid; }
 		const std::string& getName() const { return m_name; }
 
@@ -200,7 +201,8 @@ namespace net
 					OwnedMessage<T> owned;
 					owned.remote = this->shared_from_this();
 					owned.msg = std::move(msg);
-					m_messagesIn.pushBack(std::move(owned));
+					if (onMessageReceived)
+						onMessageReceived(std::move(owned));
 				}
 			}
 			catch (const boost::system::system_error& e)
@@ -301,7 +303,6 @@ namespace net
 		asio::ip::tcp::socket m_socket;
 		asio::io_context& m_context;
 		tc::Queue<Message<T>> m_messagesOut;
-		tc::Queue<OwnedMessage<T>>& m_messagesIn;
 		Owner m_owner = Owner::Server;
 		std::string m_uuid;
 		std::string m_name;

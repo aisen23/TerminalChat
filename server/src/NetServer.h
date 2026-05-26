@@ -35,17 +35,13 @@ namespace tc
 
 	private:
 		asio::awaitable<void> acceptLoop();
-		void receiveMsgLoop();
 
 	private:
 		NetServerHandler& m_handler;
 		asio::io_context m_context;
-		asio::executor_work_guard<asio::io_context::executor_type> m_workGuard;
 		asio::ip::tcp::acceptor m_acceptor;
-		std::vector<std::jthread> m_workers;
-		std::jthread m_recvWorker;
+		std::jthread m_worker;
 
-		Queue<net::OwnedMessage<MsgTypes>> m_messagesIn;
 		std::unordered_map<std::string, std::shared_ptr<Client>> m_clientMap;
 		std::mutex m_mtx;
 	};

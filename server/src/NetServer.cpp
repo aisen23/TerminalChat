@@ -5,7 +5,6 @@ namespace tc
 {
 	NetServer::NetServer(NetServerHandler& handler, uint32_t port)
 		: m_handler(handler)
-		, m_workGuard{ asio::make_work_guard(m_context) }
 		, m_acceptor(m_context, asio::ip::tcp::endpoint(asio::ip::tcp::v4(), static_cast<unsigned short>(port)))
 	{
 	}
@@ -17,45 +16,22 @@ namespace tc
 
 	void NetServer::start()
 	{
-		std::scoped_lock lock(m_mtx);
-		if (!m_workers.empty())
-			return;
-
 		asio::co_spawn(m_context, acceptLoop(), asio::detached);
 
-		size_t threadCount = std::thread::hardware_concurrency() / 2;
-		if (threadCount < 1)
-			threadCount = 1;
-
-		for (size_t i = 0; i < threadCount; ++i)
-			m_workers.emplace_back([this] { m_context.run(); });
-
-		m_recvWorker = std::jthread([this] { receiveMsgLoop(); });
+		m_worker = std::jthread([this] { m_context.run(); });
 	}
 
 	void NetServer::stop()
 	{
-		m_messagesIn.shutdown();
-
-		std::vector<std::jthread> workers;
-		std::jthread recvWorker;
 		{
 			std::scoped_lock lock(m_mtx);
 			boost::system::error_code ec;
 			m_acceptor.close(ec);
-
 			m_context.stop();
-
-			workers = std::move(m_workers);
-			recvWorker = std::move(m_recvWorker);
 		}
 
-		for (auto& w : workers)
-			if (w.joinable())
-				w.join();
-
-		if (recvWorker.joinable())
-			recvWorker.join();
+		if (m_worker.joinable())
+			m_worker.join();
 
 		{
 			std::scoped_lock lock(m_mtx);
@@ -89,8 +65,7 @@ namespace tc
 				auto connection = std::make_shared<net::Connection<MsgTypes>>(
 					net::Connection<MsgTypes>::Owner::Server,
 					m_context,
-					std::move(socket),
-					m_messagesIn);
+					std::move(socket));
 
 				bool ok = co_await connection->connectToClient();
 				if (ok)
@@ -98,6 +73,10 @@ namespace tc
 					const std::string& uuid = connection->getUuid();
 					const std::string& name = connection->getName();
 					auto client = std::make_shared<Client>(Client{connection, name, uuid});
+
+					connection->onMessageReceived = [this, client](net::OwnedMessage<MsgTypes> ownedMsg) {
+						m_handler.onReceive(client, std::move(ownedMsg.msg));
+					};
 					{
 						connection->onDisconnect = [this, client](auto /*conn*/) {
 							m_handler.pushTask([this, client] {
@@ -134,41 +113,5 @@ namespace tc
 			std::println("[SERVER] Accept error: {}", e.what());
 		}
 		co_return;
-	}
-
-	void NetServer::receiveMsgLoop()
-	{
-		using namespace std::chrono_literals;
-		for (;;)
-		{
-			m_messagesIn.wait();
-			if (m_messagesIn.stopped() && m_messagesIn.empty())
-				break;
-
-			if (m_messagesIn.empty())
-				continue;
-
-			auto optMsg = m_messagesIn.popFront();
-			if (!optMsg)
-				continue;
-
-			try
-			{
-				auto ownedMsg = std::move(*optMsg);
-				std::shared_ptr<Client> foundClient;
-				{
-					std::scoped_lock lock(m_mtx);
-					if (auto it = m_clientMap.find(ownedMsg.remote->getUuid()); it != m_clientMap.end())
-						foundClient = it->second;
-				}
-
-				if (foundClient)
-					m_handler.onReceive(foundClient, std::move(ownedMsg.msg));
-			}
-			catch (const std::exception& e)
-			{
-				std::println("[SERVER] Error processing message: {}", e.what());
-			}
-		}
 	}
 }
