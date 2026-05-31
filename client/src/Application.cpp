@@ -7,9 +7,10 @@ using json = nlohmann::json;
 namespace tc
 {
 	namespace fs = std::filesystem;
-	int Application::run()
+	int Application::run(std::string_view instanceId)
 	{
 		using namespace std::chrono_literals;
+		m_instanceId = instanceId;
 		log::info("Starting client application...");
 		init();
 		startInputWorker();
@@ -174,7 +175,7 @@ namespace tc
 		case MsgTypes::ConnectionAccepted:
 		{
 			log::info("Connection accepted!");
-			log::printMessage("SERVER", "You are in chat!");
+			printMessage("SERVER", "You are in chat!");
 			break;
 		}
 		}
@@ -198,7 +199,8 @@ namespace tc
 	void Application::saveData()
 	{
 		auto dir = utils::writableConfigPath();
-		std::ofstream file{ dir / "client_data.json" };
+		const std::string filename = m_instanceId.empty() ? "client_data.json" : std::format("client_data_{}.json", m_instanceId);
+		std::ofstream file{ dir / filename };
 		if (!file.is_open())
 		{
 			tc::log::error("Failed to open file.");
@@ -219,7 +221,8 @@ namespace tc
 	void Application::loadData()
 	{
 		auto dir = utils::writableConfigPath();
-		std::ifstream file( dir / "client_data.json");
+		const std::string filename = m_instanceId.empty() ? "client_data.json" : std::format("client_data_{}.json", m_instanceId);
+		std::ifstream file(dir / filename);
 		if (!file.is_open())
 		{
 			tc::log::warn("Failed to open file.");

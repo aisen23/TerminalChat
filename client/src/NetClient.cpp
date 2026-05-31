@@ -75,7 +75,7 @@ namespace tc
 
 		if (!isConnected())
 		{
-			log::printAs("CLIENT", "Not connected, cannot send message");
+			printAs("CLIENT", "Not connected, cannot send message");
 			return false;
 		}
 
@@ -91,7 +91,7 @@ namespace tc
 	{
 		if (!isConnected())
 		{
-			log::printAs("CLIENT", "Not connected, cannot send message");
+			printAs("CLIENT", "Not connected, cannot send message");
 			return false;
 		}
 
@@ -141,7 +141,7 @@ namespace tc
 		try
 		{
 			asio::ip::tcp::resolver resolver{ m_context };
-			log::print("Resolving {}:{}...", m_ip, m_port);
+			print("Resolving {}:{}...", m_ip, m_port);
 			auto endpoints = co_await resolver.async_resolve(m_ip, std::format("{}", m_port), asio::use_awaitable);
 
 			auto connection = std::make_shared<net::Connection<MsgTypes>>(

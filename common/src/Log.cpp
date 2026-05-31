@@ -42,7 +42,7 @@ namespace tc::log
 	};
 	static LogState g_logState;
 
-	void init(const std::string& appName)
+	void init(std::string_view instanceId)
 	{
 		std::filesystem::path exePath;
 #ifdef _WIN32
@@ -56,7 +56,7 @@ namespace tc::log
 			exePath = std::string(path, count);
 #endif
 		if (exePath.empty())
-			exePath = std::filesystem::current_path() / appName;
+			throw std::runtime_error("Failed to get executable path.");
 
 		auto binDir = exePath.parent_path();
 		g_binName = exePath.filename().replace_extension("").string();
@@ -99,7 +99,8 @@ namespace tc::log
 			g_logLevel = Level::Info;
 		}
 
-		g_logFilePath = g_logsDir / (g_binName + ".log");
+		std::string logFile = instanceId.empty() ? g_binName + ".log" : std::format(g_binName + ".{}.log", instanceId);
+		g_logFilePath = g_logsDir / logFile;
 		g_logFile.open(g_logFilePath, std::ios::app);
 
 		if (!g_logState.thread.joinable())

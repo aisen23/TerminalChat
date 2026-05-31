@@ -8,7 +8,7 @@ namespace tc
 	class Application : public NetClientHandler
 	{
 	public:
-		int run();
+		int run(std::string_view instanceId = "");
 
 	private:
 		void checkNetClient();
@@ -38,6 +38,7 @@ namespace tc
 		std::jthread m_inputWorker;
 		std::string m_name;
 		std::string m_uuid;
+		std::string m_instanceId;
 		std::chrono::time_point<std::chrono::steady_clock> m_pingTime;
 	};
 }
