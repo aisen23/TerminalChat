@@ -149,36 +149,37 @@ namespace tc
 
 	void Application::onReceive(net::Message<MsgTypes> msg)
 	{
-		tc::log::debug("Received message: id={}, size={}", static_cast<int>(msg.header.id), msg.size());
-		switch (msg.header.id)
-		{
-		case MsgTypes::ChatText:
-		{
-			std::string text;
-			msg >> text;
-			formatText(text, false);
-			break;
-		}
-		case MsgTypes::Ping:
-		{
-			auto now = std::chrono::steady_clock::now();
-			std::chrono::time_point<std::chrono::steady_clock> pingStart;
+		pushTask([this, msg = std::move(msg)]() mutable {
+			tc::log::debug("Received message: id={}, size={}", static_cast<int>(msg.header.id), msg.size());
+			switch (msg.header.id)
 			{
-				std::scoped_lock lock(m_mtx);
-				pingStart = m_pingTime;
+			case MsgTypes::ChatText:
+			{
+				std::string text;
+				msg >> text;
+				formatText(text, false);
+				break;
 			}
-			std::chrono::duration<double, std::milli> latency = now - pingStart;
-			std::string text = std::format("Pong! Latency: {:.2f} ms", latency.count());
-			formatText(text, false);
-			break;
-		}
-		case MsgTypes::ConnectionAccepted:
-		{
-			log::info("Connection accepted!");
-			printMessage("SERVER", "You are in chat!");
-			break;
-		}
-		}
+			case MsgTypes::Ping:
+			{
+				auto now = std::chrono::steady_clock::now();
+				std::chrono::time_point<std::chrono::steady_clock> pingStart;
+				{
+					std::scoped_lock lock(m_mtx);
+					pingStart = m_pingTime;
+				}
+				std::chrono::duration<double, std::milli> latency = now - pingStart;
+				std::string text = std::format("Pong! Latency: {:.2f} ms", latency.count());
+				formatText(text, false);
+				break;
+			}
+			case MsgTypes::ConnectionAccepted:
+			{
+				log::info("Connection accepted!");
+				printMessage("SERVER", "You are in chat!");
+				break;
+			}
+			} });
 	}
 
 	void Application::pushTask(std::move_only_function<void()> task)
@@ -321,6 +322,15 @@ namespace tc
 #else
 		localtime_r(&timeT, &tm);
 #endif
-		std::print("\x1b[1A\x1b[2K\r[{:02}:{:02}:{:04} {:02}:{:02}:{:02}] {}{}\n", tm.tm_mon + 1, tm.tm_mday, tm.tm_year + 1900, tm.tm_hour, tm.tm_min, tm.tm_sec, addMe ? "[Me] : " : "", text);
+		if (addMe)
+		{
+			// Only move up and clear the line if we are replacing our own raw input
+			std::print("\x1b[1A\x1b[2K\r");
+		}
+
+		std::println("[{:02}:{:02}:{:04} {:02}:{:02}:{:02}] {}{}",
+			tm.tm_mon + 1, tm.tm_mday, tm.tm_year + 1900,
+			tm.tm_hour, tm.tm_min, tm.tm_sec,
+			addMe ? "[Me] : " : "", text);
 	}
-}
+	}

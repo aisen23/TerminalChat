@@ -170,13 +170,22 @@ namespace tc
 		pushTask([this, client]() {
 			std::println("New client connected: {}", client->name);
 			m_netServer->sendToClient(client, net::Message<MsgTypes>{ MsgTypes::ConnectionAccepted });
+
+			net::Message<MsgTypes> msg{ MsgTypes::ChatText };
+			msg << std::format("User {} connected.", client->name);
+			m_netServer->sendToAll(msg, client);
 		});
 	}
 
 	void Application::onClientDisconnect(std::shared_ptr<Client> client)
 	{
 		pushTask([this, client]() {
+
 			std::println("Client disconnected: {}", client->name);
+
+			net::Message<MsgTypes> msg{ MsgTypes::ChatText };
+			msg << std::format("User {} disconnected.", client->name);
+			m_netServer->sendToAll(msg, client);
 		});
 	}
 

@@ -216,9 +216,7 @@ namespace net
 					tc::log::info("Connection read closed by peer.");
 				}
 				else
-				{
 					tc::log::error("Connection read error: {} [code: {}]", e.what(), e.code().value());
-				}
 			}
 			catch (const std::exception& e)
 			{
