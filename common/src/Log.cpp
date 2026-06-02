@@ -48,6 +48,11 @@ namespace tc
 
 		void init(std::string_view instanceId)
 		{
+#ifdef _WIN32
+			SetConsoleOutputCP(CP_UTF8);
+			SetConsoleCP(CP_UTF8);
+#endif
+
 			std::filesystem::path exePath;
 #ifdef _WIN32
 			char path[MAX_PATH];
