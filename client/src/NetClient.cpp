@@ -141,7 +141,7 @@ namespace tc
 		try
 		{
 			asio::ip::tcp::resolver resolver{ m_context };
-			print("Resolving {}:{}...", m_ip, m_port);
+			tc::print("Resolving {}:{}...", m_ip, m_port);
 			auto endpoints = co_await resolver.async_resolve(m_ip, std::format("{}", m_port), asio::use_awaitable);
 
 			auto connection = std::make_shared<net::Connection<MsgTypes>>(
