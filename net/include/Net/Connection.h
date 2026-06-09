@@ -6,6 +6,7 @@
 #include <Common/Log.h>
 
 #include <boost/asio.hpp>
+#include <boost/asio/experimental/awaitable_operators.hpp>
 
 #include <memory>
 #include <print>
@@ -13,6 +14,7 @@
 
 namespace net
 {
+	using namespace boost::asio::experimental::awaitable_operators;
 	namespace asio = boost::asio;
 
 	std::vector<std::string> getLocalIpAddresses();
@@ -58,10 +60,12 @@ namespace net
 				timer.expires_after(std::chrono::seconds(5)); // 5-second handshake timeout
 
 				uint64_t magic = 0x1234567890ABCDEF;
-				co_await (asio::async_write(m_socket, asio::buffer(&magic, sizeof(magic)), asio::use_awaitable) || timer.async_wait(asio::use_awaitable));
+				if ((co_await (asio::async_write(m_socket, asio::buffer(&magic, sizeof(magic)), asio::use_awaitable) || timer.async_wait(asio::use_awaitable))).index() == 1)
+					throw std::runtime_error("Write magic timeout");
 
 				uint64_t client_magic = 0;
-				co_await (asio::async_read(m_socket, asio::buffer(&client_magic, sizeof(client_magic)), asio::use_awaitable) || timer.async_wait(asio::use_awaitable));
+				if ((co_await (asio::async_read(m_socket, asio::buffer(&client_magic, sizeof(client_magic)), asio::use_awaitable) || timer.async_wait(asio::use_awaitable))).index() == 1)
+					throw std::runtime_error("Read magic timeout");
 
 				if (client_magic != (magic ^ 0xDEADBEEF))
 				{
@@ -70,24 +74,30 @@ namespace net
 				}
 
 				uint32_t uuidLen = 0;
-				co_await (asio::async_read(m_socket, asio::buffer(&uuidLen, sizeof(uuidLen)), asio::use_awaitable) || timer.async_wait(asio::use_awaitable));
+				if ((co_await (asio::async_read(m_socket, asio::buffer(&uuidLen, sizeof(uuidLen)), asio::use_awaitable) || timer.async_wait(asio::use_awaitable))).index() == 1)
+					throw std::runtime_error("Read UUID length timeout");
+
 				if (uuidLen > 512)
 				{
 					tc::log::error("Handshake failed: UUID length too large ({})", uuidLen);
 					co_return false;
 				}
 				m_uuid.resize(uuidLen);
-				co_await (asio::async_read(m_socket, asio::buffer(m_uuid.data(), uuidLen), asio::use_awaitable) || timer.async_wait(asio::use_awaitable));
+				if ((co_await (asio::async_read(m_socket, asio::buffer(m_uuid.data(), uuidLen), asio::use_awaitable) || timer.async_wait(asio::use_awaitable))).index() == 1)
+					throw std::runtime_error("Read UUID timeout");
 
 				uint32_t nameLen = 0;
-				co_await (asio::async_read(m_socket, asio::buffer(&nameLen, sizeof(nameLen)), asio::use_awaitable) || timer.async_wait(asio::use_awaitable));
+				if ((co_await (asio::async_read(m_socket, asio::buffer(&nameLen, sizeof(nameLen)), asio::use_awaitable) || timer.async_wait(asio::use_awaitable))).index() == 1)
+					throw std::runtime_error("Read name length timeout");
+
 				if (nameLen > 128)
 				{
 					tc::log::error("Handshake failed: Name length too large ({})", nameLen);
 					co_return false;
 				}
 				m_name.resize(nameLen);
-				co_await (asio::async_read(m_socket, asio::buffer(m_name.data(), nameLen), asio::use_awaitable) || timer.async_wait(asio::use_awaitable));
+				if ((co_await (asio::async_read(m_socket, asio::buffer(m_name.data(), nameLen), asio::use_awaitable) || timer.async_wait(asio::use_awaitable))).index() == 1)
+					throw std::runtime_error("Read name timeout");
 			}
 			catch (const std::exception& e)
 			{
@@ -129,18 +139,24 @@ namespace net
 				timer.expires_after(std::chrono::seconds(5)); // 5-second handshake timeout
 
 				uint64_t magic = 0;
-				co_await (asio::async_read(m_socket, asio::buffer(&magic, sizeof(magic)), asio::use_awaitable) || timer.async_wait(asio::use_awaitable));
+				if ((co_await (asio::async_read(m_socket, asio::buffer(&magic, sizeof(magic)), asio::use_awaitable) || timer.async_wait(asio::use_awaitable))).index() == 1)
+					throw std::runtime_error("Read magic timeout");
 
 				magic ^= 0xDEADBEEF;
-				co_await (asio::async_write(m_socket, asio::buffer(&magic, sizeof(magic)), asio::use_awaitable) || timer.async_wait(asio::use_awaitable));
+				if ((co_await (asio::async_write(m_socket, asio::buffer(&magic, sizeof(magic)), asio::use_awaitable) || timer.async_wait(asio::use_awaitable))).index() == 1)
+					throw std::runtime_error("Write magic timeout");
 
 				uint32_t uuidLen = static_cast<uint32_t>(uuid.size());
-				co_await (asio::async_write(m_socket, asio::buffer(&uuidLen, sizeof(uuidLen)), asio::use_awaitable) || timer.async_wait(asio::use_awaitable));
-				co_await (asio::async_write(m_socket, asio::buffer(uuid.data(), uuidLen), asio::use_awaitable) || timer.async_wait(asio::use_awaitable));
+				if ((co_await (asio::async_write(m_socket, asio::buffer(&uuidLen, sizeof(uuidLen)), asio::use_awaitable) || timer.async_wait(asio::use_awaitable))).index() == 1)
+					throw std::runtime_error("Write UUID length timeout");
+				if ((co_await (asio::async_write(m_socket, asio::buffer(uuid.data(), uuidLen), asio::use_awaitable) || timer.async_wait(asio::use_awaitable))).index() == 1)
+					throw std::runtime_error("Write UUID timeout");
 
 				uint32_t nameLen = static_cast<uint32_t>(name.size());
-				co_await (asio::async_write(m_socket, asio::buffer(&nameLen, sizeof(nameLen)), asio::use_awaitable) || timer.async_wait(asio::use_awaitable));
-				co_await (asio::async_write(m_socket, asio::buffer(name.data(), nameLen), asio::use_awaitable) || timer.async_wait(asio::use_awaitable));
+				if ((co_await (asio::async_write(m_socket, asio::buffer(&nameLen, sizeof(nameLen)), asio::use_awaitable) || timer.async_wait(asio::use_awaitable))).index() == 1)
+					throw std::runtime_error("Write name length timeout");
+				if ((co_await (asio::async_write(m_socket, asio::buffer(name.data(), nameLen), asio::use_awaitable) || timer.async_wait(asio::use_awaitable))).index() == 1)
+					throw std::runtime_error("Write name timeout");
 			}
 			catch (const std::exception& e)
 			{

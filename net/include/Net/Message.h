@@ -2,6 +2,8 @@
 #include <cstring>
 #include <cstdint>
 #include <vector>
+#include <string>
+#include <ostream>
 
 namespace net
 {
