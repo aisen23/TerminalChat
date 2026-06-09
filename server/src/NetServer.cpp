@@ -67,40 +67,43 @@ namespace tc
 					m_context,
 					std::move(socket));
 
-				bool ok = co_await connection->connectToClient();
-				if (ok)
-				{
-					const std::string& uuid = connection->getUuid();
-					const std::string& name = connection->getName();
-					auto client = std::make_shared<Client>(Client{connection, name, uuid});
-
-					connection->onMessageReceived = [this, client](net::OwnedMessage<MsgTypes> ownedMsg) {
-						m_handler.onReceive(client, std::move(ownedMsg.msg));
-					};
+				asio::co_spawn(m_context, [this, connection]() -> asio::awaitable<void> {
+					bool ok = co_await connection->connectToClient();
+					if (ok)
 					{
-						connection->onDisconnect = [this, client](auto /*conn*/) {
-							m_handler.pushTask([this, client] {
-								std::shared_ptr<Client> toDisconnect;
-								{
-									std::scoped_lock lock(m_mtx);
-									if (auto it = m_clientMap.find(client->uuid); it != m_clientMap.end())
-									{
-										toDisconnect = it->second;
-										m_clientMap.erase(it);
-									}
-								}
-								if (toDisconnect)
-									m_handler.onClientDisconnect(toDisconnect);
-							});
-						};
+						const std::string& uuid = connection->getUuid();
+						const std::string& name = connection->getName();
+						auto client = std::make_shared<Client>(Client{ connection, name, uuid });
 
-						std::scoped_lock lock(m_mtx);
-						m_clientMap[uuid] = client;
-						log::debug("Clients number: {}", m_clientMap.size());
+						connection->onMessageReceived = [this, client](net::OwnedMessage<MsgTypes> ownedMsg) {
+							m_handler.onReceive(client, std::move(ownedMsg.msg));
+						};
+						{
+							connection->onDisconnect = [this, client](auto /*conn*/) {
+								m_handler.pushTask([this, client] {
+									std::shared_ptr<Client> toDisconnect;
+									{
+										std::scoped_lock lock(m_mtx);
+										if (auto it = m_clientMap.find(client->uuid); it != m_clientMap.end())
+										{
+											toDisconnect = it->second;
+											m_clientMap.erase(it);
+										}
+									}
+									if (toDisconnect)
+										m_handler.onClientDisconnect(toDisconnect);
+									});
+							};
+
+							std::scoped_lock lock(m_mtx);
+							m_clientMap[uuid] = client;
+							log::debug("Clients number: {}", m_clientMap.size());
+						}
+						std::println("[SERVER] Client connected with UUID: {}", uuid);
+						m_handler.onClientConnect(client);
 					}
-					std::println("[SERVER] Client connected with UUID: {}", uuid);
-					m_handler.onClientConnect(client);
-				}
+					co_return;
+				}, asio::detached);
 			}
 		}
 		catch (const boost::system::system_error& e)

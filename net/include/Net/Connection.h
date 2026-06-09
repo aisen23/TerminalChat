@@ -68,11 +68,21 @@ namespace net
 
 				uint32_t uuidLen = 0;
 				co_await asio::async_read(m_socket, asio::buffer(&uuidLen, sizeof(uuidLen)), asio::use_awaitable);
+				if (uuidLen > 512)
+				{
+					tc::log::error("Handshake failed: UUID length too large ({})", uuidLen);
+					co_return false;
+				}
 				m_uuid.resize(uuidLen);
 				co_await asio::async_read(m_socket, asio::buffer(m_uuid.data(), uuidLen), asio::use_awaitable);
 
 				uint32_t nameLen = 0;
 				co_await asio::async_read(m_socket, asio::buffer(&nameLen, sizeof(nameLen)), asio::use_awaitable);
+				if (nameLen > 128)
+				{
+					tc::log::error("Handshake failed: Name length too large ({})", nameLen);
+					co_return false;
+				}
 				m_name.resize(nameLen);
 				co_await asio::async_read(m_socket, asio::buffer(m_name.data(), nameLen), asio::use_awaitable);
 			}
