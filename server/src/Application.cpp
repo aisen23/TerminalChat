@@ -129,6 +129,11 @@ namespace tc
 						std::string prefix = "[SERVER] ";
 						msgText = prefix + msgText;
 						msg << msgText;
+
+						m_msgHistory.push_back(msg);
+						if (m_msgHistory.size() > 50)
+							m_msgHistory.pop_front();
+
 						m_netServer->sendToAll(std::move(msg));
 					});
 				}
@@ -151,6 +156,11 @@ namespace tc
 				broadcastMsg.header.id = MsgTypes::ChatText;
 				std::string outgoing = std::format("[{}]: {}", client->name, text);
 				broadcastMsg << outgoing;
+
+				m_msgHistory.push_back(broadcastMsg);
+				if (m_msgHistory.size() > 50)
+					m_msgHistory.pop_front();
+
 				m_netServer->sendToAll(std::move(broadcastMsg), client);
 				break;
 			}
@@ -180,8 +190,16 @@ namespace tc
 			std::println("New client connected: {}", client->name);
 			m_netServer->sendToClient(client, net::Message<MsgTypes>{ MsgTypes::ConnectionAccepted });
 
+			for (const auto& oldMsg : m_msgHistory)
+				m_netServer->sendToClient(client, oldMsg);
+
 			net::Message<MsgTypes> msg{ MsgTypes::ChatText };
 			msg << std::format("User {} connected.", client->name);
+
+			m_msgHistory.push_back(msg);
+			if (m_msgHistory.size() > 50)
+				m_msgHistory.pop_front();
+
 			m_netServer->sendToAll(msg, client);
 		});
 	}
