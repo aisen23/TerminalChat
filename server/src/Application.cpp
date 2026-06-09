@@ -33,6 +33,15 @@ namespace tc
 			}
 		}
 
+		while (true)
+		{
+			std::unique_lock lock(m_mtx);
+			if (m_tasks.empty())
+				break;
+			auto task = m_tasks.popFront();
+			lock.unlock();
+			if (task) (*task)();
+		}
 		m_netServer.reset();
 		std::println("[INFO] NetServer shutdown complete.");
 

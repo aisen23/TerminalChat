@@ -35,6 +35,7 @@ namespace tc
 
 	private:
 		asio::awaitable<void> acceptLoop();
+		void handleClientDisconnect(std::shared_ptr<Client> client);
 
 	private:
 		NetServerHandler& m_handler;

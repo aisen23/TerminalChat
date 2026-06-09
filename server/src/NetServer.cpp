@@ -12,6 +12,8 @@ namespace tc
 	NetServer::~NetServer()
 	{
 		stop();
+		std::scoped_lock lock(m_mtx);
+		m_clientMap.clear();
 	}
 
 	void NetServer::start()
@@ -54,6 +56,23 @@ namespace tc
 				client->connection->send(msg);
 	}
 
+	void NetServer::handleClientDisconnect(std::shared_ptr<Client> client)
+	{
+		m_handler.pushTask([this, client] {
+			std::shared_ptr<Client> toDisconnect;
+			{
+				std::scoped_lock lock(m_mtx);
+				if (auto it = m_clientMap.find(client->uuid); it != m_clientMap.end())
+				{
+					toDisconnect = it->second;
+					m_clientMap.erase(it);
+				}
+			}
+			if (toDisconnect)
+				m_handler.onClientDisconnect(toDisconnect);
+		});
+	}
+
 	asio::awaitable<void> NetServer::acceptLoop()
 	{
 		try
@@ -78,27 +97,13 @@ namespace tc
 						connection->onMessageReceived = [this, client](net::OwnedMessage<MsgTypes> ownedMsg) {
 							m_handler.onReceive(client, std::move(ownedMsg.msg));
 						};
-						{
-							connection->onDisconnect = [this, client](auto /*conn*/) {
-								m_handler.pushTask([this, client] {
-									std::shared_ptr<Client> toDisconnect;
-									{
-										std::scoped_lock lock(m_mtx);
-										if (auto it = m_clientMap.find(client->uuid); it != m_clientMap.end())
-										{
-											toDisconnect = it->second;
-											m_clientMap.erase(it);
-										}
-									}
-									if (toDisconnect)
-										m_handler.onClientDisconnect(toDisconnect);
-									});
-							};
 
-							std::scoped_lock lock(m_mtx);
-							m_clientMap[uuid] = client;
-							log::debug("Clients number: {}", m_clientMap.size());
-						}
+						connection->onDisconnect = [this, client](auto /*conn*/) {
+							this->handleClientDisconnect(client);
+						};
+						std::scoped_lock lock(m_mtx);
+						m_clientMap[uuid] = client;
+						log::debug("Clients number: {}", m_clientMap.size());
 						std::println("[SERVER] Client connected with UUID: {}", uuid);
 						m_handler.onClientConnect(client);
 					}

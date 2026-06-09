@@ -54,11 +54,14 @@ namespace net
 
 			try
 			{
+				asio::steady_timer timer(m_context);
+				timer.expires_after(std::chrono::seconds(5)); // 5-second handshake timeout
+
 				uint64_t magic = 0x1234567890ABCDEF;
-				co_await asio::async_write(m_socket, asio::buffer(&magic, sizeof(magic)), asio::use_awaitable);
+				co_await (asio::async_write(m_socket, asio::buffer(&magic, sizeof(magic)), asio::use_awaitable) || timer.async_wait(asio::use_awaitable));
 
 				uint64_t client_magic = 0;
-				co_await asio::async_read(m_socket, asio::buffer(&client_magic, sizeof(client_magic)), asio::use_awaitable);
+				co_await (asio::async_read(m_socket, asio::buffer(&client_magic, sizeof(client_magic)), asio::use_awaitable) || timer.async_wait(asio::use_awaitable));
 
 				if (client_magic != (magic ^ 0xDEADBEEF))
 				{
@@ -67,24 +70,24 @@ namespace net
 				}
 
 				uint32_t uuidLen = 0;
-				co_await asio::async_read(m_socket, asio::buffer(&uuidLen, sizeof(uuidLen)), asio::use_awaitable);
+				co_await (asio::async_read(m_socket, asio::buffer(&uuidLen, sizeof(uuidLen)), asio::use_awaitable) || timer.async_wait(asio::use_awaitable));
 				if (uuidLen > 512)
 				{
 					tc::log::error("Handshake failed: UUID length too large ({})", uuidLen);
 					co_return false;
 				}
 				m_uuid.resize(uuidLen);
-				co_await asio::async_read(m_socket, asio::buffer(m_uuid.data(), uuidLen), asio::use_awaitable);
+				co_await (asio::async_read(m_socket, asio::buffer(m_uuid.data(), uuidLen), asio::use_awaitable) || timer.async_wait(asio::use_awaitable));
 
 				uint32_t nameLen = 0;
-				co_await asio::async_read(m_socket, asio::buffer(&nameLen, sizeof(nameLen)), asio::use_awaitable);
+				co_await (asio::async_read(m_socket, asio::buffer(&nameLen, sizeof(nameLen)), asio::use_awaitable) || timer.async_wait(asio::use_awaitable));
 				if (nameLen > 128)
 				{
 					tc::log::error("Handshake failed: Name length too large ({})", nameLen);
 					co_return false;
 				}
 				m_name.resize(nameLen);
-				co_await asio::async_read(m_socket, asio::buffer(m_name.data(), nameLen), asio::use_awaitable);
+				co_await (asio::async_read(m_socket, asio::buffer(m_name.data(), nameLen), asio::use_awaitable) || timer.async_wait(asio::use_awaitable));
 			}
 			catch (const std::exception& e)
 			{
@@ -92,8 +95,9 @@ namespace net
 				co_return false;
 			}
 
-			auto executor = co_await asio::this_coro::executor;
-			asio::co_spawn(executor, readMessage(), asio::detached);
+			asio::co_spawn(m_socket.get_executor(), [self = this->shared_from_this()]() -> asio::awaitable<void> {
+				co_await self->readMessage();
+			}, asio::detached);
 			tc::log::info("Connection validated for UID: {}", m_uuid);
 			co_return true;
 		}
@@ -121,19 +125,22 @@ namespace net
 
 			try
 			{
+				asio::steady_timer timer(m_context);
+				timer.expires_after(std::chrono::seconds(5)); // 5-second handshake timeout
+
 				uint64_t magic = 0;
-				co_await asio::async_read(m_socket, asio::buffer(&magic, sizeof(magic)), asio::use_awaitable);
+				co_await (asio::async_read(m_socket, asio::buffer(&magic, sizeof(magic)), asio::use_awaitable) || timer.async_wait(asio::use_awaitable));
 
 				magic ^= 0xDEADBEEF;
-				co_await asio::async_write(m_socket, asio::buffer(&magic, sizeof(magic)), asio::use_awaitable);
+				co_await (asio::async_write(m_socket, asio::buffer(&magic, sizeof(magic)), asio::use_awaitable) || timer.async_wait(asio::use_awaitable));
 
 				uint32_t uuidLen = static_cast<uint32_t>(uuid.size());
-				co_await asio::async_write(m_socket, asio::buffer(&uuidLen, sizeof(uuidLen)), asio::use_awaitable);
-				co_await asio::async_write(m_socket, asio::buffer(uuid.data(), uuidLen), asio::use_awaitable);
+				co_await (asio::async_write(m_socket, asio::buffer(&uuidLen, sizeof(uuidLen)), asio::use_awaitable) || timer.async_wait(asio::use_awaitable));
+				co_await (asio::async_write(m_socket, asio::buffer(uuid.data(), uuidLen), asio::use_awaitable) || timer.async_wait(asio::use_awaitable));
 
 				uint32_t nameLen = static_cast<uint32_t>(name.size());
-				co_await asio::async_write(m_socket, asio::buffer(&nameLen, sizeof(nameLen)), asio::use_awaitable);
-				co_await asio::async_write(m_socket, asio::buffer(name.data(), nameLen), asio::use_awaitable);
+				co_await (asio::async_write(m_socket, asio::buffer(&nameLen, sizeof(nameLen)), asio::use_awaitable) || timer.async_wait(asio::use_awaitable));
+				co_await (asio::async_write(m_socket, asio::buffer(name.data(), nameLen), asio::use_awaitable) || timer.async_wait(asio::use_awaitable));
 			}
 			catch (const std::exception& e)
 			{
@@ -141,8 +148,9 @@ namespace net
 				co_return false;
 			}
 
-			auto executor = co_await asio::this_coro::executor;
-			asio::co_spawn(executor, readMessage(), asio::detached);
+			asio::co_spawn(m_socket.get_executor(), [self = this->shared_from_this()]() -> asio::awaitable<void> {
+				co_await self->readMessage();
+			}, asio::detached);
 			co_return true;
 		}
 
@@ -159,18 +167,20 @@ namespace net
 
 		void send(Message<T> msg)
 		{
-			asio::post(m_context, [this, msg = std::move(msg)]() mutable {
+			asio::post(m_context, [self = this->shared_from_this(), msg = std::move(msg)]() mutable {
 				bool wasWriting = false;
 				{
-					std::scoped_lock lock(m_writingMtx);
-					wasWriting = m_writingMessage;
-					m_messagesOut.pushBack(std::move(msg));
+					std::scoped_lock lock(self->m_writingMtx);
+					wasWriting = self->m_writingMessage;
+					self->m_messagesOut.pushBack(std::move(msg));
 					if (!wasWriting)
-						m_writingMessage = true;
+						self->m_writingMessage = true;
 				}
 				if (!wasWriting)
 				{
-					asio::co_spawn(m_context, writeMessage(), asio::detached);
+					asio::co_spawn(self->m_context, [self]() -> asio::awaitable<void> {
+						co_await self->writeMessage();
+					}, asio::detached);
 				}
 			});
 		}
